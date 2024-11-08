@@ -38,7 +38,10 @@ void main() {
     mockFlutterDevice = FakeFlutterDevice(mockWebDevice);
     mockFlutterDevice._devFS = mockWebDevFS;
 
-    fileSystem.file('.packages').writeAsStringSync('\n');
+    fileSystem
+      .directory('.dart_tool')
+      .childFile('package_config.json')
+      .createSync(recursive: true);
     fileSystem.file('pubspec.yaml').createSync();
     fileSystem.file(fileSystem.path.join('lib', 'main.dart')).createSync(recursive: true);
     fileSystem.file(fileSystem.path.join('web', 'index.html')).createSync(recursive: true);
@@ -58,6 +61,7 @@ void main() {
         fs: fileSystem,
         fakeFlutterVersion: FakeFlutterVersion(),
       ),
+      useImplicitPubspecResolution: true,
     );
 
     final Completer<DebugConnectionInfo> connectionInfoCompleter = Completer<DebugConnectionInfo>();
@@ -88,6 +92,7 @@ void main() {
         fs: fileSystem,
         fakeFlutterVersion: FakeFlutterVersion(),
       ),
+      useImplicitPubspecResolution: true,
     );
 
     expect(() => residentWebRunner.run(), throwsToolExit());
@@ -113,6 +118,7 @@ void main() {
         fs: fileSystem,
         fakeFlutterVersion: FakeFlutterVersion(),
       ),
+      useImplicitPubspecResolution: true,
     );
 
     expect(() async => residentWebRunner.run(), throwsException);
@@ -137,6 +143,7 @@ void main() {
         fs: fileSystem,
         fakeFlutterVersion: FakeFlutterVersion(),
       ),
+      useImplicitPubspecResolution: true,
     );
     final Completer<DebugConnectionInfo> connectionInfoCompleter = Completer<DebugConnectionInfo>();
     unawaited(residentWebRunner.run(
@@ -166,6 +173,7 @@ void main() {
         fs: fileSystem,
         fakeFlutterVersion: FakeFlutterVersion(),
       ),
+      useImplicitPubspecResolution: true,
     );
     final Completer<DebugConnectionInfo> connectionInfoCompleter = Completer<DebugConnectionInfo>();
     unawaited(residentWebRunner.run(

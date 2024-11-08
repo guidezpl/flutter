@@ -18,6 +18,7 @@ class ColdRunner extends ResidentRunner {
     super.flutterDevices, {
     required super.target,
     required super.debuggingOptions,
+    required super.useImplicitPubspecResolution,
     this.traceStartup = false,
     this.awaitFirstFrameWhenTracing = true,
     this.applicationBinary,
@@ -104,7 +105,7 @@ class ColdRunner extends ResidentRunner {
       if (device!.vmService == null) {
         continue;
       }
-      await device.initLogReader();
+      await device.tryInitLogReader();
       globals.printTrace('Connected to ${device.device!.name}');
     }
 
@@ -154,7 +155,7 @@ class ColdRunner extends ResidentRunner {
     }
 
     for (final FlutterDevice? device in flutterDevices) {
-      await device!.initLogReader();
+      await device!.tryInitLogReader();
     }
     for (final FlutterDevice? device in flutterDevices) {
       final List<FlutterView> views = await device!.vmService!.getFlutterViews();

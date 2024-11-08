@@ -19,6 +19,7 @@ import 'package:flutter_tools/src/dart/pub.dart';
 import 'package:flutter_tools/src/globals.dart' as globals;
 import 'package:flutter_tools/src/reporting/reporting.dart';
 import 'package:flutter_tools/src/version.dart';
+import 'package:unified_analytics/unified_analytics.dart';
 
 import 'context.dart';
 import 'fake_http_client.dart';
@@ -40,6 +41,7 @@ final Map<Type, Generator> _testbedDefaults = <Type, Generator>{
   OperatingSystemUtils: () => FakeOperatingSystemUtils(),
   OutputPreferences: () => OutputPreferences.test(), // configures BufferLogger to avoid color codes.
   Usage: () => TestUsage(), // prevent addition of analytics from burdening test mocks
+  Analytics: () => const NoOpAnalytics(),
   FlutterVersion: () => FakeFlutterVersion(), // prevent requirement to mock git for test runner.
   Signals: () => FakeSignals(),  // prevent registering actual signal handlers.
   Pub: () => ThrowingPub(), // prevent accidental invocations of pub.
@@ -90,7 +92,7 @@ class Testbed {
   ///
   /// `overrides` may be used to provide new context values for the single test
   /// case or override any context values from the setup.
-  Future<T?> run<T>(FutureOr<T> Function() test, {Map<Type, Generator>? overrides}) {
+  Future<T?> run<T>(FutureOr<T> Function() test, {Map<Type, Generator>? overrides, bool useImplicitPubspecResolution = true}) {
     final Map<Type, Generator> testOverrides = <Type, Generator>{
       ..._testbedDefaults,
       // Add the initial setUp overrides
@@ -137,7 +139,7 @@ class Testbed {
             }
             return null;
           });
-      });
+      }, useImplicitPubspecResolution: useImplicitPubspecResolution);
     }, createHttpClient: (SecurityContext? c) => FakeHttpClient.any());
   }
 }

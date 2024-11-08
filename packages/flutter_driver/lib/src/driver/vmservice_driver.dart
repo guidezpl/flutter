@@ -6,7 +6,6 @@
 library;
 
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:file/file.dart' as f;
@@ -109,8 +108,10 @@ class VMServiceFlutterDriver extends FlutterDriver {
       while (true) {
         final vms.Isolate isolate = await client.getIsolate(ref.id!);
         if (isolate.pauseEvent!.kind == vms.EventKind.kNone) {
+          _log('Waiting for isolate ${ref.number} to be runnable.');
           await Future<void>.delayed(_kPauseBetweenIsolateRefresh);
         } else {
+          _log('Isolate ${ref.number} is runnable.');
           return isolate;
         }
       }
@@ -355,14 +356,6 @@ class VMServiceFlutterDriver extends FlutterDriver {
       file.createSync(recursive: true); // no-op if file exists
       file.writeAsStringSync('${DateTime.now()} $message\n', mode: f.FileMode.append, flush: true);
     }
-  }
-
-  @override
-  Future<List<int>> screenshot() async {
-    await Future<void>.delayed(const Duration(seconds: 2));
-
-    final vms.Response result = await _serviceClient.callMethod('_flutter.screenshot');
-    return base64.decode(result.json!['screenshot'] as String);
   }
 
   @override

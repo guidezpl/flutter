@@ -2,13 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// TODO(gspencergoog): Remove this tag once this test's state leaks/test
-// dependencies have been fixed.
-// https://github.com/flutter/flutter/issues/85160
-// Fails with "flutter test --test-randomize-ordering-seed=1000"
-@Tags(<String>['no-shuffle'])
-library;
-
 import 'dart:async';
 import 'dart:convert';
 
@@ -24,7 +17,9 @@ import 'package:flutter_tools/src/commands/packages.dart';
 import 'package:flutter_tools/src/dart/pub.dart';
 import 'package:flutter_tools/src/globals.dart' as globals;
 import 'package:unified_analytics/unified_analytics.dart';
+import 'package:yaml/yaml.dart';
 
+import '../../integration.shard/test_utils.dart';
 import '../../src/common.dart';
 import '../../src/context.dart';
 import '../../src/fake_process_manager.dart';
@@ -36,9 +31,15 @@ void main() {
 
   setUp(() {
     mockStdio = FakeStdio()..stdout.terminalColumns = 80;
+
+    // Some tests below override this with a blank root, always reset it.
+    Cache.flutterRoot = null;
   });
 
-  Cache.disableLocking();
+  setUpAll(() {
+    Cache.disableLocking();
+  });
+
   group('packages get/upgrade', () {
     late Directory tempDir;
     late FakeAnalytics fakeAnalytics;
@@ -71,10 +72,11 @@ void main() {
       return projectPath;
     }
 
-    Future<PackagesCommand> runCommandIn(String projectPath, String verb, { List<String>? args }) async {
+    Future<PackagesCommand> runCommandIn(String projectPath, String verb, { List<String>? args, List<String>? globalArgs }) async {
       final PackagesCommand command = PackagesCommand();
       final CommandRunner<void> runner = createTestCommandRunner(command);
       await runner.run(<String>[
+        ...?globalArgs,
         'packages',
         verb,
         ...?args,
@@ -135,15 +137,21 @@ void main() {
       '.android/Flutter/src/main/java/io/flutter/plugins/GeneratedPluginRegistrant.java',
     ];
 
-    const List<String> pluginWitnesses = <String>[
-      '.flutter-plugins',
-      'ios/Podfile',
-    ];
+    List<String> pluginWitnesses({required bool includeLegacyPluginsList}) {
+      return <String>[
+        if (includeLegacyPluginsList) '.flutter-plugins',
+        '.flutter-plugins-dependencies',
+        'ios/Podfile',
+      ];
+    }
 
-    const List<String> modulePluginWitnesses = <String>[
-      '.flutter-plugins',
-      '.ios/Podfile',
-    ];
+    List<String> modulePluginWitnesses({required bool includeLegacyPluginsList}) {
+      return <String>[
+        if (includeLegacyPluginsList) '.flutter-plugins',
+        '.flutter-plugins-dependencies',
+        '.ios/Podfile',
+      ];
+    }
 
     const Map<String, String> pluginContentWitnesses = <String, String>{
       'ios/Flutter/Debug.xcconfig': '#include? "Pods/Target Support Files/Pods-Runner/Pods-Runner.debug.xcconfig"',
@@ -165,7 +173,10 @@ void main() {
       for (final String registrant in modulePluginRegistrants) {
         expectExists(projectPath, registrant);
       }
-      for (final String witness in pluginWitnesses) {
+      for (final String witness in pluginWitnesses(includeLegacyPluginsList: true)) {
+        expectNotExists(projectPath, witness);
+      }
+      for (final String witness in modulePluginWitnesses(includeLegacyPluginsList: true)) {
         expectNotExists(projectPath, witness);
       }
       modulePluginContentWitnesses.forEach((String witness, String content) {
@@ -173,23 +184,26 @@ void main() {
       });
     }
 
-    void expectPluginInjected(String projectPath) {
+    void expectPluginInjected(String projectPath, {required bool includeLegacyPluginsList}) {
       for (final String registrant in pluginRegistrants) {
         expectExists(projectPath, registrant);
       }
-      for (final String witness in pluginWitnesses) {
+      for (final String witness in pluginWitnesses(includeLegacyPluginsList: includeLegacyPluginsList)) {
         expectExists(projectPath, witness);
+      }
+      if (!includeLegacyPluginsList) {
+        expectNotExists(projectPath, '.flutter-plugins');
       }
       pluginContentWitnesses.forEach((String witness, String content) {
         expectContains(projectPath, witness, content);
       });
     }
 
-    void expectModulePluginInjected(String projectPath) {
+    void expectModulePluginInjected(String projectPath, {required bool includeLegacyPluginsList}) {
       for (final String registrant in modulePluginRegistrants) {
         expectExists(projectPath, registrant);
       }
-      for (final String witness in modulePluginWitnesses) {
+      for (final String witness in modulePluginWitnesses(includeLegacyPluginsList: includeLegacyPluginsList)) {
         expectExists(projectPath, witness);
       }
       modulePluginContentWitnesses.forEach((String witness, String content) {
@@ -201,7 +215,7 @@ void main() {
       final Iterable<String> allFiles = <List<String>>[
         pubOutput,
         modulePluginRegistrants,
-        pluginWitnesses,
+        pluginWitnesses(includeLegacyPluginsList: true),
       ].expand<String>((List<String> list) => list);
       for (final String path in allFiles) {
         final File file = globals.fs.file(globals.fs.path.join(projectPath, path));
@@ -313,6 +327,68 @@ flutter:
         botDetector: globals.botDetector,
         platform: globals.platform,
       ),
+    });
+
+    testUsingContext('get fetches packages for a workspace', () async {
+      tempDir.childFile('pubspec.yaml').writeAsStringSync('''
+name: workspace
+environment:
+  sdk: ^3.5.0-0
+workspace:
+  - flutter_project
+''');
+      final String projectPath = await createProject(tempDir,
+        arguments: <String>['--no-pub', '--template=module']);
+      final File pubspecFile = fileSystem.file(
+        fileSystem.path.join(
+          projectPath,
+          'pubspec.yaml',
+        ),
+      );
+      final YamlMap pubspecYaml = loadYaml(pubspecFile.readAsStringSync()) as YamlMap;
+      final Map<String, Object?> pubspec = <String, Object?>{
+        ...pubspecYaml.value.cast<String, Object?>(),
+        'resolution': 'workspace',
+        'environment': <String, Object?>{
+          ...(pubspecYaml['environment'] as YamlMap).value.cast<String, Object?>(),
+          'sdk': '^3.5.0-0',
+        }
+      };
+      pubspecFile.writeAsStringSync(jsonEncode(pubspec));
+      await runCommandIn(projectPath, 'get');
+
+      expect(mockStdio.stdout.writes.map(utf8.decode),
+        allOf(
+          // The output of pub changed, adding backticks around the directory name.
+          // These regexes are tolerant of the backticks being present or absent.
+          contains(matches(RegExp(r'Resolving dependencies in .+' + RegExp.escape(tempDir.basename) + r'`?\.\.\.'))),
+          contains(matches(RegExp(r'\+ flutter 0\.0\.0 from sdk flutter'))),
+          contains(matches(RegExp(r'Changed \d+ dependencies in .+' + RegExp.escape(tempDir.basename) + r'`?!'))),
+        ),
+      );
+      expectDependenciesResolved(tempDir.path);
+      expectZeroPluginsInjected(projectPath);
+      expect(
+        analyticsTimingEventExists(
+          sentEvents: fakeAnalytics.sentEvents,
+          workflow: 'pub',
+          variableName: 'get',
+          label: 'success',
+        ),
+        true,
+      );
+    }, overrides: <Type, Generator>{
+      Stdio: () => mockStdio,
+      Pub: () => Pub.test(
+        fileSystem: globals.fs,
+        logger: globals.logger,
+        processManager: globals.processManager,
+        usage: globals.flutterUsage,
+        botDetector: globals.botDetector,
+        platform: globals.platform,
+        stdio: mockStdio,
+      ),
+      Analytics: () => fakeAnalytics,
     });
 
     testUsingContext('get generates normal files when l10n.yaml has synthetic-package: false', () async {
@@ -516,7 +592,7 @@ flutter:
       await runCommandIn(projectPath, 'get');
 
       expectDependenciesResolved(projectPath);
-      expectModulePluginInjected(projectPath);
+      expectModulePluginInjected(projectPath, includeLegacyPluginsList: true);
     }, overrides: <Type, Generator>{
       Stdio: () => mockStdio,
       Pub: () => Pub.test(
@@ -546,7 +622,35 @@ flutter:
       await runCommandIn(exampleProjectPath, 'get');
 
       expectDependenciesResolved(exampleProjectPath);
-      expectPluginInjected(exampleProjectPath);
+      expectPluginInjected(exampleProjectPath, includeLegacyPluginsList: true);
+    }, overrides: <Type, Generator>{
+      Stdio: () => mockStdio,
+      Pub: () => Pub.test(
+        fileSystem: globals.fs,
+        logger: globals.logger,
+        processManager: globals.processManager,
+        usage: globals.flutterUsage,
+        botDetector: globals.botDetector,
+        platform: globals.platform,
+        stdio: mockStdio,
+      ),
+    });
+
+    testUsingContext('get --no-implicit-pubspec-resolution omits ".flutter-plugins"', () async {
+      final String projectPath = await createProject(
+        tempDir,
+        arguments: <String>['--template=plugin', '--no-pub', '--platforms=ios,android'],
+      );
+      final String exampleProjectPath = globals.fs.path.join(projectPath, 'example');
+      removeGeneratedFiles(projectPath);
+      removeGeneratedFiles(exampleProjectPath);
+
+      // Running flutter packages get also resolves the dependencies in the example/ project.
+      await runCommandIn(projectPath, 'get', globalArgs: <String>['--no-implicit-pubspec-resolution']);
+
+      expectDependenciesResolved(projectPath);
+      expectDependenciesResolved(exampleProjectPath);
+      expectPluginInjected(exampleProjectPath, includeLegacyPluginsList: false);
     }, overrides: <Type, Generator>{
       Stdio: () => mockStdio,
       Pub: () => Pub.test(

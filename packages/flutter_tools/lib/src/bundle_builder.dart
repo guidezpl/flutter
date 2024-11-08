@@ -37,6 +37,7 @@ class BundleBuilder {
   Future<void> build({
     required TargetPlatform platform,
     required BuildInfo buildInfo,
+    required bool useImplicitPubspecResolution,
     FlutterProject? project,
     String? mainPath,
     String manifestPath = defaultManifestPath,
@@ -55,11 +56,12 @@ class BundleBuilder {
     // If the precompiled flag was not passed, force us into debug mode.
     final Environment environment = Environment(
       projectDir: project.directory,
+      packageConfigPath: buildInfo.packageConfigPath,
       outputDir: globals.fs.directory(assetDirPath),
       buildDir: project.dartTool.childDirectory('flutter_build'),
       cacheDir: globals.cache.getRoot(),
       flutterRootDir: globals.fs.directory(Cache.flutterRoot),
-      engineVersion: globals.artifacts!.isLocalEngine
+      engineVersion: globals.artifacts!.usesLocalArtifacts
           ? null
           : globals.flutterVersion.engineRevision,
       defines: <String, String>{
@@ -78,6 +80,7 @@ class BundleBuilder {
       analytics: globals.analytics,
       platform: globals.platform,
       generateDartPluginRegistry: true,
+      useImplicitPubspecResolution: useImplicitPubspecResolution,
     );
     final Target target = buildInfo.mode == BuildMode.debug
         ? globals.buildTargets.copyFlutterBundle
@@ -115,18 +118,17 @@ class BundleBuilder {
 Future<AssetBundle?> buildAssets({
   required String manifestPath,
   String? assetDirPath,
-  String? packagesPath,
+  required String packageConfigPath,
   TargetPlatform? targetPlatform,
   String? flavor,
 }) async {
   assetDirPath ??= getAssetBuildDirectory();
-  packagesPath ??= globals.fs.path.absolute('.packages');
 
   // Build the asset bundle.
   final AssetBundle assetBundle = AssetBundleFactory.instance.createBundle();
   final int result = await assetBundle.build(
     manifestPath: manifestPath,
-    packagesPath: packagesPath,
+    packageConfigPath: packageConfigPath,
     targetPlatform: targetPlatform,
     flavor: flavor,
   );

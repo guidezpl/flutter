@@ -21,7 +21,6 @@ import 'package:flutter_tools/src/commands/daemon.dart';
 import 'package:flutter_tools/src/daemon.dart';
 import 'package:flutter_tools/src/device.dart';
 import 'package:flutter_tools/src/features.dart';
-import 'package:flutter_tools/src/fuchsia/fuchsia_workflow.dart';
 import 'package:flutter_tools/src/globals.dart' as globals;
 import 'package:flutter_tools/src/ios/ios_workflow.dart';
 import 'package:flutter_tools/src/preview_device.dart';
@@ -100,6 +99,7 @@ void main() {
       daemon = Daemon(
         daemonConnection,
         notifyingLogger: notifyingLogger,
+        useImplicitPubspecResolution: true,
       );
       daemonStreams.inputs.add(DaemonMessage(<String, Object?>{'id': 0, 'method': 'daemon.version'}));
       final DaemonMessage response = await daemonStreams.outputs.stream.firstWhere(_notEvent);
@@ -112,6 +112,7 @@ void main() {
       daemon = Daemon(
         daemonConnection,
         notifyingLogger: notifyingLogger,
+        useImplicitPubspecResolution: true,
       );
       // Use the flutter_gallery project which has a known set of supported platforms.
       final String projectPath = globals.fs.path.join(getFlutterRoot(), 'dev', 'integration_tests', 'flutter_gallery');
@@ -216,6 +217,7 @@ void main() {
       daemon = Daemon(
         daemonConnection,
         notifyingLogger: notifyingLogger,
+        useImplicitPubspecResolution: true,
       );
       globals.printError('daemon.logMessage test');
       final DaemonMessage response = await daemonStreams.outputs.stream.firstWhere((DaemonMessage message) {
@@ -234,6 +236,7 @@ void main() {
       daemon = Daemon(
         daemonConnection,
         notifyingLogger: notifyingLogger,
+        useImplicitPubspecResolution: true,
       );
       globals.printWarning('daemon.logMessage test');
       final DaemonMessage response = await daemonStreams.outputs.stream.firstWhere((DaemonMessage message) {
@@ -254,6 +257,7 @@ void main() {
           daemonConnection,
           notifyingLogger: notifyingLogger,
           logToStdout: true,
+          useImplicitPubspecResolution: true,
         );
         globals.printStatus('daemon.logMessage test');
         return Future<void>.value();
@@ -270,6 +274,7 @@ void main() {
           daemonConnection,
           notifyingLogger: notifyingLogger,
           logToStdout: true,
+          useImplicitPubspecResolution: true,
         );
         globals.printBox('This is the box message', title: 'Sample title');
         return Future<void>.value();
@@ -284,6 +289,7 @@ void main() {
       daemon = Daemon(
         daemonConnection,
         notifyingLogger: notifyingLogger,
+        useImplicitPubspecResolution: true,
       );
       notifyingLogger.notifyVerbose = false;
       globals.printTrace('daemon.logMessage test 1');
@@ -305,6 +311,7 @@ void main() {
       daemon = Daemon(
         daemonConnection,
         notifyingLogger: notifyingLogger,
+        useImplicitPubspecResolution: true,
       );
       expect(notifyingLogger.notifyVerbose, false);
 
@@ -323,6 +330,7 @@ void main() {
       daemon = Daemon(
         daemonConnection,
         notifyingLogger: notifyingLogger,
+        useImplicitPubspecResolution: true,
       );
       notifyingLogger.notifyVerbose = false;
 
@@ -341,6 +349,7 @@ void main() {
       daemon = Daemon(
         daemonConnection,
         notifyingLogger: notifyingLogger,
+        useImplicitPubspecResolution: true,
       );
       daemonStreams.inputs.add(DaemonMessage(<String, Object?>{'id': 0, 'method': 'daemon.shutdown'}));
       return daemon.onExit.then<void>((int code) async {
@@ -353,6 +362,7 @@ void main() {
       daemon = Daemon(
         daemonConnection,
         notifyingLogger: notifyingLogger,
+        useImplicitPubspecResolution: true,
       );
 
       daemonStreams.inputs.add(DaemonMessage(<String, Object?>{'id': 0, 'method': 'app.restart'}));
@@ -365,6 +375,7 @@ void main() {
       daemon = Daemon(
         daemonConnection,
         notifyingLogger: notifyingLogger,
+        useImplicitPubspecResolution: true,
       );
 
       daemonStreams.inputs.add(DaemonMessage(<String, Object?>{
@@ -383,6 +394,7 @@ void main() {
       daemon = Daemon(
         daemonConnection,
         notifyingLogger: notifyingLogger,
+        useImplicitPubspecResolution: true,
       );
 
       daemonStreams.inputs.add(DaemonMessage(<String, Object?>{'id': 0, 'method': 'app.stop'}));
@@ -395,6 +407,7 @@ void main() {
       daemon = Daemon(
         daemonConnection,
         notifyingLogger: notifyingLogger,
+        useImplicitPubspecResolution: true,
       );
       daemonStreams.inputs.add(DaemonMessage(<String, Object?>{'id': 0, 'method': 'device.getDevices'}));
       final DaemonMessage response = await daemonStreams.outputs.stream.firstWhere(_notEvent);
@@ -406,6 +419,7 @@ void main() {
       daemon = Daemon(
         daemonConnection,
         notifyingLogger: notifyingLogger,
+        useImplicitPubspecResolution: true,
       );
       final FakePollingDeviceDiscovery discoverer = FakePollingDeviceDiscovery();
       daemon.deviceDomain.addDeviceDiscoverer(discoverer);
@@ -422,6 +436,7 @@ void main() {
       daemon = Daemon(
         daemonConnection,
         notifyingLogger: notifyingLogger,
+        useImplicitPubspecResolution: true,
       );
 
       final FakePollingDeviceDiscovery discoverer = FakePollingDeviceDiscovery();
@@ -435,6 +450,7 @@ void main() {
         previewBinary: fs.file(r'preview_device.exe'),
         artifacts: Artifacts.test(fileSystem: fs),
         builderFactory: () => throw UnimplementedError('TODO implement builder factory'),
+        useImplicitPubspecResolution: true,
       ));
 
       final List<Map<String, Object?>> names = <Map<String, Object?>>[];
@@ -498,7 +514,6 @@ void main() {
     }, overrides: <Type, Generator>{
       AndroidWorkflow: () => FakeAndroidWorkflow(),
       IOSWorkflow: () => FakeIOSWorkflow(),
-      FuchsiaWorkflow: () => FakeFuchsiaWorkflow(),
       WindowsWorkflow: () => FakeWindowsWorkflow(),
     });
 
@@ -506,6 +521,7 @@ void main() {
       daemon = Daemon(
         daemonConnection,
         notifyingLogger: notifyingLogger,
+        useImplicitPubspecResolution: true,
       );
       daemonStreams.inputs.add(DaemonMessage(<String, Object?>{'id': 0, 'method': 'device.discoverDevices'}));
       final DaemonMessage response = await daemonStreams.outputs.stream.firstWhere(_notEvent);
@@ -517,6 +533,7 @@ void main() {
       daemon = Daemon(
         daemonConnection,
         notifyingLogger: notifyingLogger,
+        useImplicitPubspecResolution: true,
       );
       final FakePollingDeviceDiscovery discoverer = FakePollingDeviceDiscovery();
       daemon.deviceDomain.addDeviceDiscoverer(discoverer);
@@ -534,6 +551,7 @@ void main() {
       daemon = Daemon(
         daemonConnection,
         notifyingLogger: notifyingLogger,
+        useImplicitPubspecResolution: true,
       );
       final FakePollingDeviceDiscovery discoverer = FakePollingDeviceDiscovery();
       daemon.deviceDomain.addDeviceDiscoverer(discoverer);
@@ -558,6 +576,7 @@ void main() {
       daemon = Daemon(
         daemonConnection,
         notifyingLogger: notifyingLogger,
+        useImplicitPubspecResolution: true,
       );
       final FakePollingDeviceDiscovery discoverer = FakePollingDeviceDiscovery();
       daemon.deviceDomain.addDeviceDiscoverer(discoverer);
@@ -609,6 +628,7 @@ void main() {
         daemon = Daemon(
           daemonConnection,
           notifyingLogger: notifyingLogger,
+          useImplicitPubspecResolution: true,
         );
         final FakePollingDeviceDiscovery discoverer = FakePollingDeviceDiscovery();
         daemon.deviceDomain.addDeviceDiscoverer(discoverer);
@@ -675,6 +695,7 @@ void main() {
       daemon = Daemon(
         daemonConnection,
         notifyingLogger: notifyingLogger,
+        useImplicitPubspecResolution: true,
       );
       final FakePollingDeviceDiscovery discoverer = FakePollingDeviceDiscovery();
       daemon.deviceDomain.addDeviceDiscoverer(discoverer);
@@ -734,6 +755,7 @@ void main() {
       daemon = Daemon(
         daemonConnection,
         notifyingLogger: notifyingLogger,
+        useImplicitPubspecResolution: true,
       );
       final FakePollingDeviceDiscovery discoverer1 = FakePollingDeviceDiscovery();
       discoverer1.diagnostics = <String>['fake diagnostic 1', 'fake diagnostic 2'];
@@ -759,6 +781,7 @@ void main() {
       daemon = Daemon(
         daemonConnection,
         notifyingLogger: notifyingLogger,
+        useImplicitPubspecResolution: true,
       );
 
       daemonStreams.inputs.add(DaemonMessage(<String, Object?>{'id': 0, 'method': 'emulator.launch'}));
@@ -771,6 +794,7 @@ void main() {
       daemon = Daemon(
         daemonConnection,
         notifyingLogger: notifyingLogger,
+        useImplicitPubspecResolution: true,
       );
       final Map<String, Object?> params = <String, Object?>{'emulatorId': 'device', 'coldBoot': 1};
       daemonStreams.inputs.add(DaemonMessage(<String, Object?>{'id': 0, 'method': 'emulator.launch', 'params': params}));
@@ -783,6 +807,7 @@ void main() {
       daemon = Daemon(
         daemonConnection,
         notifyingLogger: notifyingLogger,
+        useImplicitPubspecResolution: true,
       );
       daemonStreams.inputs.add(DaemonMessage(<String, Object?>{'id': 0, 'method': 'emulator.getEmulators'}));
       final DaemonMessage response = await daemonStreams.outputs.stream.firstWhere(_notEvent);
@@ -797,6 +822,7 @@ void main() {
       daemon = Daemon(
         daemonConnection,
         notifyingLogger: notifyingLogger,
+        useImplicitPubspecResolution: true,
       );
 
       // Respond to any requests from the daemon to expose a URL.
@@ -816,6 +842,7 @@ void main() {
       daemon = Daemon(
         daemonConnection,
         notifyingLogger: notifyingLogger,
+        useImplicitPubspecResolution: true,
       );
 
       daemonStreams.inputs.add(DaemonMessage(<String, Object?>{'id': 0, 'method': 'devtools.serve'}));
@@ -832,6 +859,7 @@ void main() {
       daemon = Daemon(
         daemonConnection,
         notifyingLogger: notifyingLogger,
+        useImplicitPubspecResolution: true,
       );
 
       daemonStreams.inputs.add(DaemonMessage(<String, Object?>{'id': 0, 'method': 'devtools.serve'}));
@@ -862,6 +890,7 @@ void main() {
         daemon = Daemon(
           daemonConnection,
           notifyingLogger: notifyingLogger,
+          useImplicitPubspecResolution: true,
         );
         daemonStreams.inputs.add(DaemonMessage(<String, Object?>{'id': 0, 'method': 'proxy.connect', 'params': <String, Object?>{'port': 123}}));
 
@@ -922,6 +951,7 @@ void main() {
         daemon = Daemon(
           daemonConnection,
           notifyingLogger: notifyingLogger,
+          useImplicitPubspecResolution: true,
         );
         daemonStreams.inputs.add(DaemonMessage(<String, Object?>{'id': 0, 'method': 'proxy.connect', 'params': <String, Object?>{'port': 123}}));
 
@@ -942,6 +972,7 @@ void main() {
         daemon = Daemon(
           daemonConnection,
           notifyingLogger: notifyingLogger,
+          useImplicitPubspecResolution: true,
         );
         daemonStreams.inputs.add(DaemonMessage(<String, Object?>{'id': 0, 'method': 'proxy.connect', 'params': <String, Object?>{'port': 123}}));
 
@@ -1104,13 +1135,6 @@ bool _isConnectedEvent(DaemonMessage message) => message.data['event'] == 'daemo
 
 class FakeWindowsWorkflow extends Fake implements WindowsWorkflow {
   FakeWindowsWorkflow({ this.canListDevices = true });
-
-  @override
-  final bool canListDevices;
-}
-
-class FakeFuchsiaWorkflow extends Fake implements FuchsiaWorkflow {
-  FakeFuchsiaWorkflow({ this.canListDevices = true });
 
   @override
   final bool canListDevices;

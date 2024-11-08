@@ -18,6 +18,8 @@ import '../desktop_device.dart';
 import '../devfs.dart';
 import '../device.dart';
 import '../device_port_forwarder.dart';
+import '../globals.dart' as globals;
+import '../native_assets.dart';
 import '../project.dart';
 import '../protocol_discovery.dart';
 import '../version.dart';
@@ -49,11 +51,15 @@ class FlutterTesterDevice extends Device {
     required super.logger,
     required FileSystem fileSystem,
     required Artifacts artifacts,
+    required bool useImplicitPubspecResolution,
+    TestCompilerNativeAssetsBuilder? nativeAssetsBuilder,
   }) : _processManager = processManager,
        _flutterVersion = flutterVersion,
        _logger = logger,
        _fileSystem = fileSystem,
-        _artifacts = artifacts,
+      _artifacts = artifacts,
+      _nativeAssetsBuilder = nativeAssetsBuilder,
+      _useImplicitPubspecResolution = useImplicitPubspecResolution,
        super(
         platformType: null,
         category: null,
@@ -65,6 +71,8 @@ class FlutterTesterDevice extends Device {
   final Logger _logger;
   final FileSystem _fileSystem;
   final Artifacts _artifacts;
+  final TestCompilerNativeAssetsBuilder? _nativeAssetsBuilder;
+  final bool _useImplicitPubspecResolution;
 
   Process? _process;
   final DevicePortForwarder _portForwarder = const NoOpDevicePortForwarder();
@@ -151,12 +159,15 @@ class FlutterTesterDevice extends Device {
     );
 
     // Build assets and perform initial compilation.
+    final FlutterProject project = FlutterProject.current();
     await BundleBuilder().build(
+      project: project,
       buildInfo: buildInfo,
       mainPath: mainPath,
       applicationKernelFilePath: applicationKernelFilePath,
       platform: TargetPlatform.tester,
       assetDirPath: assetDirectory.path,
+      useImplicitPubspecResolution: _useImplicitPubspecResolution,
     );
 
     final List<String> command = <String>[
@@ -182,6 +193,8 @@ class FlutterTesterDevice extends Device {
       _process = await _processManager.start(command,
         environment: <String, String>{
           'FLUTTER_TEST': 'true',
+          if (globals.platform.isWindows && _nativeAssetsBuilder != null)
+            'PATH': '${_nativeAssetsBuilder.windowsBuildDirectory(project)};${globals.platform.environment['PATH']}',
         },
       );
       if (!debuggingOptions.debuggingEnabled) {
@@ -256,13 +269,17 @@ class FlutterTesterDevices extends PollingDeviceDiscovery {
     required ProcessManager processManager,
     required Logger logger,
     required FlutterVersion flutterVersion,
+    required bool useImplicitPubspecResolution,
+    TestCompilerNativeAssetsBuilder? nativeAssetsBuilder,
   }) : _testerDevice = FlutterTesterDevice(
         kTesterDeviceId,
         fileSystem: fileSystem,
         artifacts: artifacts,
         processManager: processManager,
         logger: logger,
-          flutterVersion: flutterVersion,
+        flutterVersion: flutterVersion,
+        nativeAssetsBuilder: nativeAssetsBuilder,
+        useImplicitPubspecResolution: useImplicitPubspecResolution,
       ),
        super('Flutter tester');
 

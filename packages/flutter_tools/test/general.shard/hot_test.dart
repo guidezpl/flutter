@@ -132,9 +132,14 @@ void main() {
       });
 
       testUsingContext('setupHotRestart function fails', () async {
-        fileSystem.file('.packages')
+        fileSystem.directory('.dart_tool').childFile('package_config.json')
           ..createSync(recursive: true)
-          ..writeAsStringSync('\n');
+          ..writeAsStringSync('''
+{
+  "configVersion": 2,
+  "packages": []
+}
+''');
         final FakeDevice device = FakeDevice();
         final List<FlutterDevice> devices = <FlutterDevice>[
           FakeFlutterDevice(device),
@@ -144,6 +149,7 @@ void main() {
           debuggingOptions: DebuggingOptions.disabled(BuildInfo.debug),
           target: 'main.dart',
           devtoolsHandler: createNoOpHandler,
+          useImplicitPubspecResolution: true,
           analytics: fakeAnalytics,
         ).restart(fullRestart: true);
         expect(result.isOk, false);
@@ -158,9 +164,14 @@ void main() {
       });
 
       testUsingContext('setupHotReload function fails', () async {
-        fileSystem.file('.packages')
+        fileSystem.directory('.dart_tool').childFile('package_config.json')
           ..createSync(recursive: true)
-          ..writeAsStringSync('\n');
+          ..writeAsStringSync('''
+{
+  "configVersion": 2,
+  "packages": []
+}
+''');
         final FakeDevice device = FakeDevice();
         final FakeFlutterDevice fakeFlutterDevice = FakeFlutterDevice(device);
         final List<FlutterDevice> devices = <FlutterDevice>[
@@ -171,6 +182,7 @@ void main() {
           debuggingOptions: DebuggingOptions.disabled(BuildInfo.debug),
           target: 'main.dart',
           devtoolsHandler: createNoOpHandler,
+          useImplicitPubspecResolution: true,
           reassembleHelper: (
             List<FlutterDevice?> flutterDevices,
             Map<FlutterDevice?, List<FlutterView>> viewCache,
@@ -203,9 +215,14 @@ void main() {
       });
 
       testUsingContext('shutdown hook called after signal', () async {
-        fileSystem.file('.packages')
+        fileSystem.directory('.dart_tool').childFile('package_config.json')
           ..createSync(recursive: true)
-          ..writeAsStringSync('\n');
+          ..writeAsStringSync('''
+{
+  "configVersion": 2,
+  "packages": []
+}
+''');
         final FakeDevice device = FakeDevice();
         final List<FlutterDevice> devices = <FlutterDevice>[
           FlutterDevice(device, generator: residentCompiler, buildInfo: BuildInfo.debug, developmentShaderCompiler: const FakeShaderCompiler()),
@@ -215,6 +232,7 @@ void main() {
           debuggingOptions: DebuggingOptions.disabled(BuildInfo.debug),
           target: 'main.dart',
           analytics: fakeAnalytics,
+          useImplicitPubspecResolution: true,
         ).cleanupAfterSignal();
         expect(shutdownTestingConfig.shutdownHookCalled, true);
       }, overrides: <Type, Generator>{
@@ -226,9 +244,14 @@ void main() {
       });
 
       testUsingContext('shutdown hook called after app stop', () async {
-        fileSystem.file('.packages')
+        fileSystem.directory('.dart_tool').childFile('package_config.json')
           ..createSync(recursive: true)
-          ..writeAsStringSync('\n');
+          ..writeAsStringSync('''
+{
+  "configVersion": 2,
+  "packages": []
+}
+''');
         final FakeDevice device = FakeDevice();
         final List<FlutterDevice> devices = <FlutterDevice>[
           FlutterDevice(device, generator: residentCompiler, buildInfo: BuildInfo.debug, developmentShaderCompiler: const FakeShaderCompiler()),
@@ -238,6 +261,7 @@ void main() {
           debuggingOptions: DebuggingOptions.disabled(BuildInfo.debug),
           target: 'main.dart',
           analytics: fakeAnalytics,
+          useImplicitPubspecResolution: true,
         ).preExit();
         expect(shutdownTestingConfig.shutdownHookCalled, true);
       }, overrides: <Type, Generator>{
@@ -288,6 +312,7 @@ void main() {
           devtoolsHandler: createNoOpHandler,
           stopwatchFactory: fakeStopwatchFactory,
           analytics: fakeAnalytics,
+          useImplicitPubspecResolution: true,
         ).restart(fullRestart: true);
 
         expect(result.isOk, true);
@@ -375,6 +400,7 @@ void main() {
           devtoolsHandler: createNoOpHandler,
           stopwatchFactory: fakeStopwatchFactory,
           analytics: fakeAnalytics,
+          useImplicitPubspecResolution: true,
           reloadSourcesHelper: (
             HotRunner hotRunner,
             List<FlutterDevice?> flutterDevices,
@@ -481,6 +507,7 @@ void main() {
           target: 'main.dart',
           devtoolsHandler: createNoOpHandler,
           analytics: fakeAnalytics,
+          useImplicitPubspecResolution: true,
         );
 
         await expectLater(runner.restart(fullRestart: true), throwsA(isA<Exception>().having((Exception e) => e.toString(), 'message', 'Exception: updateDevFS failed')));
@@ -516,6 +543,7 @@ void main() {
           target: 'main.dart',
           devtoolsHandler: createNoOpHandler,
           analytics: fakeAnalytics,
+          useImplicitPubspecResolution: true,
         );
 
         await expectLater(runner.restart(), throwsA(isA<Exception>().having((Exception e) => e.toString(), 'message', 'Exception: updateDevFS failed')));
@@ -545,9 +573,14 @@ void main() {
 
     testUsingContext('Exits with code 2 when HttpException is thrown '
       'during VM service connection', () async {
-      fileSystem.file('.packages')
-        ..createSync(recursive: true)
-        ..writeAsStringSync('\n');
+      fileSystem.directory('.dart_tool').childFile('package_config.json')
+          ..createSync(recursive: true)
+          ..writeAsStringSync('''
+{
+  "configVersion": 2,
+  "packages": []
+}
+''');
 
       final FakeResidentCompiler residentCompiler = FakeResidentCompiler();
       final FakeDevice device = FakeDevice();
@@ -564,6 +597,7 @@ void main() {
         debuggingOptions: DebuggingOptions.enabled(BuildInfo.debug),
         target: 'main.dart',
         analytics: fakeAnalytics,
+        useImplicitPubspecResolution: true,
       ).attach(needsFullRestart: false);
       expect(exitCode, 2);
     }, overrides: <Type, Generator>{
@@ -602,6 +636,7 @@ void main() {
         debuggingOptions: DebuggingOptions.enabled(BuildInfo.debug),
         target: 'main.dart',
         analytics: fakeAnalytics,
+        useImplicitPubspecResolution: true,
       ).cleanupAtFinish();
 
       expect(device1.disposed, true);

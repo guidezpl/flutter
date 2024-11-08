@@ -280,37 +280,6 @@ class _BorderContainerState extends State<_BorderContainer> with TickerProviderS
   }
 }
 
-// Used to "shake" the floating label to the left and right
-// when the errorText first appears.
-class _Shaker extends AnimatedWidget {
-  const _Shaker({
-    required Animation<double> animation,
-    this.child,
-  }) : super(listenable: animation);
-
-  final Widget? child;
-
-  Animation<double> get animation => listenable as Animation<double>;
-
-  double get translateX {
-    const double shakeDelta = 4.0;
-    final double t = animation.value;
-    return shakeDelta * switch (t) {
-      <= 0.25 => -t,
-      <  0.75 => t - 0.5,
-      _ => (1.0 - t) * 4.0,
-    };
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Transform(
-      transform: Matrix4.translationValues(translateX, 0.0, 0.0),
-      child: child,
-    );
-  }
-}
-
 // Display the helper and error text. When the error text appears
 // it fades and the helper text fades out. The error text also
 // slides upwards a little when it first appears.
@@ -740,6 +709,8 @@ class _RenderDecoration extends RenderBox with SlottedContainerRenderObjectMixin
   // TODO(bleroux): consider defining this value as a Material token and making it
   // configurable by InputDecorationTheme.
   double get subtextGap => material3 ? 4.0 : 8.0;
+  double get prefixToInputGap => material3 ? 4.0 : 0.0;
+  double get inputToSuffixGap => material3 ? 4.0 : 0.0;
 
   RenderBox? get icon => childForSlot(_DecorationSlot.icon);
   RenderBox? get input => childForSlot(_DecorationSlot.input);
@@ -931,16 +902,10 @@ class _RenderDecoration extends RenderBox with SlottedContainerRenderObjectMixin
     required ChildLayouter layoutChild,
     required _ChildBaselineGetter getBaseline,
   }) {
-    final RenderBox? counter = this.counter;
-    Size counterSize;
-    final double counterAscent;
-    if (counter != null) {
-      counterSize = layoutChild(counter, constraints);
-      counterAscent = getBaseline(counter, constraints);
-    } else {
-      counterSize = Size.zero;
-      counterAscent = 0.0;
-    }
+    final (Size counterSize, double counterAscent) = switch (counter) {
+      final RenderBox box => (layoutChild(box, constraints), getBaseline(box, constraints)),
+      null => (Size.zero, 0.0),
+    };
 
     final BoxConstraints helperErrorConstraints = constraints.deflate(EdgeInsets.only(left: counterSize.width));
     final double helperErrorHeight = layoutChild(helperError, helperErrorConstraints).height;
@@ -1003,8 +968,8 @@ class _RenderDecoration extends RenderBox with SlottedContainerRenderObjectMixin
     final Size suffixSize = suffix == null ? Size.zero : layoutChild(suffix, contentConstraints);
 
     final EdgeInsetsDirectional accessoryHorizontalInsets = EdgeInsetsDirectional.only(
-      start: iconWidth + prefixSize.width + (prefixIcon == null ? contentPadding.start : prefixIconSize.width),
-      end: suffixSize.width + (suffixIcon == null ? contentPadding.end : suffixIconSize.width),
+      start: iconWidth + prefixSize.width + (prefixIcon == null ? contentPadding.start : prefixIconSize.width + prefixToInputGap),
+      end: suffixSize.width + (suffixIcon == null ? contentPadding.end : suffixIconSize.width + inputToSuffixGap),
     );
 
     final double inputWidth = math.max(0.0, constraints.maxWidth - accessoryHorizontalInsets.horizontal);
@@ -1171,25 +1136,25 @@ class _RenderDecoration extends RenderBox with SlottedContainerRenderObjectMixin
   @override
   double computeMinIntrinsicWidth(double height) {
     return _minWidth(icon, height)
-      + (prefixIcon != null ? 0.0 : contentPadding.start)
+      + (prefixIcon != null ? prefixToInputGap : contentPadding.start)
       + _minWidth(prefixIcon, height)
       + _minWidth(prefix, height)
       + math.max(_minWidth(input, height), _minWidth(hint, height))
       + _minWidth(suffix, height)
       + _minWidth(suffixIcon, height)
-      + (suffixIcon != null ? 0.0 : contentPadding.end);
+      + (suffixIcon != null ? inputToSuffixGap : contentPadding.end);
   }
 
   @override
   double computeMaxIntrinsicWidth(double height) {
     return _maxWidth(icon, height)
-      + (prefixIcon != null ? 0.0 : contentPadding.start)
+      + (prefixIcon != null ? prefixToInputGap : contentPadding.start)
       + _maxWidth(prefixIcon, height)
       + _maxWidth(prefix, height)
       + math.max(_maxWidth(input, height), _maxWidth(hint, height))
       + _maxWidth(suffix, height)
       + _maxWidth(suffixIcon, height)
-      + (suffixIcon != null ? 0.0 : contentPadding.end);
+      + (suffixIcon != null ? inputToSuffixGap : contentPadding.end);
   }
 
   double _lineHeight(double width, List<RenderBox?> boxes) {
@@ -1377,6 +1342,7 @@ class _RenderDecoration extends RenderBox with SlottedContainerRenderObjectMixin
         if (prefixIcon != null) {
           start += contentPadding.start;
           start -= centerLayout(prefixIcon!, start - prefixIcon!.size.width);
+          start -= prefixToInputGap;
         }
         if (label != null) {
           if (decoration.alignLabelWithHint) {
@@ -1397,6 +1363,7 @@ class _RenderDecoration extends RenderBox with SlottedContainerRenderObjectMixin
         if (suffixIcon != null) {
           end -= contentPadding.end;
           end += centerLayout(suffixIcon!, end);
+          end += inputToSuffixGap;
         }
         if (suffix != null) {
           end += baselineLayout(suffix!, end);
@@ -1407,6 +1374,7 @@ class _RenderDecoration extends RenderBox with SlottedContainerRenderObjectMixin
         if (prefixIcon != null) {
           start -= contentPadding.start;
           start += centerLayout(prefixIcon!, start);
+          start += prefixToInputGap;
         }
         if (label != null) {
           if (decoration.alignLabelWithHint) {
@@ -1427,6 +1395,7 @@ class _RenderDecoration extends RenderBox with SlottedContainerRenderObjectMixin
         if (suffixIcon != null) {
           end += contentPadding.end;
           end -= centerLayout(suffixIcon!, end - suffixIcon!.size.width);
+          end -= inputToSuffixGap;
         }
         if (suffix != null) {
           end -= baselineLayout(suffix!, end - suffix!.size.width);
@@ -1919,6 +1888,7 @@ class _InputDecoratorState extends State<InputDecorator> with TickerProviderStat
     _floatingLabelAnimation.dispose();
     _shakingLabelController.dispose();
     _borderGap.dispose();
+    _curvedAnimation?.dispose();
     super.dispose();
   }
 
@@ -2102,14 +2072,12 @@ class _InputDecoratorState extends State<InputDecorator> with TickerProviderStat
       .merge(decoration.errorStyle);
   }
 
-  Set<MaterialState> get materialState {
-    return <MaterialState>{
-      if (!decoration.enabled) MaterialState.disabled,
-      if (isFocused) MaterialState.focused,
-      if (isHovering) MaterialState.hovered,
-      if (_hasError) MaterialState.error,
-    };
-  }
+  Set<MaterialState> get materialState => <MaterialState>{
+    if (!decoration.enabled) MaterialState.disabled,
+    if (isFocused) MaterialState.focused,
+    if (isHovering) MaterialState.hovered,
+    if (_hasError) MaterialState.error,
+  };
 
 
   InputBorder _getDefaultBorder(ThemeData themeData, InputDecorationTheme defaults) {
@@ -2150,6 +2118,23 @@ class _InputDecoratorState extends State<InputDecorator> with TickerProviderStat
     }
   }
 
+  CurvedAnimation? _curvedAnimation;
+
+  FadeTransition _buildTransition(Widget child, Animation<double> animation) {
+    if (_curvedAnimation?.parent != animation) {
+      _curvedAnimation?.dispose();
+      _curvedAnimation = CurvedAnimation(
+              parent: animation,
+              curve: _kTransitionCurve,
+            );
+    }
+
+    return FadeTransition(
+      opacity: _curvedAnimation!,
+      child: child,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final ThemeData themeData = Theme.of(context);
@@ -2163,20 +2148,29 @@ class _InputDecoratorState extends State<InputDecorator> with TickerProviderStat
 
     final TextStyle hintStyle = _getInlineHintStyle(themeData, defaults);
     final String? hintText = decoration.hintText;
-    final Widget? hint = hintText == null ? null : AnimatedOpacity(
-      opacity: (isEmpty && !_hasInlineLabel) ? 1.0 : 0.0,
-      duration: decoration.hintFadeDuration ?? _kHintFadeTransitionDuration,
-      curve: _kTransitionCurve,
-      child: Text(
+    final bool maintainHintHeight = decoration.maintainHintHeight;
+    Widget? hint;
+    if (hintText != null) {
+      final bool showHint = isEmpty && !_hasInlineLabel;
+      final Text hintTextWidget = Text(
         hintText,
         style: hintStyle,
         textDirection: decoration.hintTextDirection,
         overflow: hintStyle.overflow ?? (decoration.hintMaxLines == null ? null : TextOverflow.ellipsis),
         textAlign: textAlign,
         maxLines: decoration.hintMaxLines,
-      ),
-    );
-
+      );
+      hint = maintainHintHeight ? AnimatedOpacity(
+        opacity: showHint ? 1.0 : 0.0,
+        duration: decoration.hintFadeDuration ?? _kHintFadeTransitionDuration,
+        curve: _kTransitionCurve,
+        child: hintTextWidget,
+      ) : AnimatedSwitcher(
+        duration: decoration.hintFadeDuration ?? _kHintFadeTransitionDuration,
+        transitionBuilder: _buildTransition,
+        child: showHint ? hintTextWidget : const SizedBox.shrink(),
+      );
+    }
     InputBorder? border;
     if (!decoration.enabled) {
       border = _hasError ? decoration.errorBorder : decoration.disabledBorder;
@@ -2196,26 +2190,39 @@ class _InputDecoratorState extends State<InputDecorator> with TickerProviderStat
       isHovering: isHovering,
     );
 
-    final Widget? label = decoration.labelText == null && decoration.label == null ? null : _Shaker(
-      animation: _shakingLabelController.view,
-      child: AnimatedOpacity(
-        duration: _kTransitionDuration,
-        curve: _kTransitionCurve,
-        opacity: _shouldShowLabel ? 1.0 : 0.0,
-        child: AnimatedDefaultTextStyle(
-          duration:_kTransitionDuration,
+    Widget? label;
+    if ((decoration.labelText ?? decoration.label) != null) {
+      label = MatrixTransition(
+        animation: _shakingLabelController,
+        onTransform: (double value) {
+          final double shakeOffset = switch (value) {
+            <= 0.25 => -value,
+            <  0.75 => value - 0.5,
+            _ => (1.0 - value) * 4.0,
+          };
+          // Shakes the floating label to the left and right
+          // when the errorText first appears.
+          return Matrix4.translationValues(shakeOffset * 4.0, 0.0, 0.0);
+        },
+        child: AnimatedOpacity(
+          duration: _kTransitionDuration,
           curve: _kTransitionCurve,
-          style: widget._labelShouldWithdraw
-            ? _getFloatingLabelStyle(themeData, defaults)
-            : labelStyle,
-          child: decoration.label ?? Text(
-            decoration.labelText!,
-            overflow: TextOverflow.ellipsis,
-            textAlign: textAlign,
+          opacity: _shouldShowLabel ? 1.0 : 0.0,
+          child: AnimatedDefaultTextStyle(
+            duration: _kTransitionDuration,
+            curve: _kTransitionCurve,
+            style: widget._labelShouldWithdraw
+              ? _getFloatingLabelStyle(themeData, defaults)
+              : labelStyle,
+            child: decoration.label ?? Text(
+              decoration.labelText!,
+              overflow: TextOverflow.ellipsis,
+              textAlign: textAlign,
+            ),
           ),
         ),
-      ),
-    );
+      );
+    }
 
     final bool hasPrefix = decoration.prefix != null || decoration.prefixText != null;
     final bool hasSuffix = decoration.suffix != null || decoration.suffixText != null;
@@ -2574,6 +2581,7 @@ class InputDecoration {
     this.hintTextDirection,
     this.hintMaxLines,
     this.hintFadeDuration,
+    this.maintainHintHeight = true,
     this.error,
     this.errorText,
     this.errorStyle,
@@ -2643,6 +2651,7 @@ class InputDecoration {
     this.hintTextDirection,
     this.hintMaxLines,
     this.hintFadeDuration,
+    this.maintainHintHeight = true,
     this.filled = false,
     this.fillColor,
     this.focusColor,
@@ -2798,6 +2807,9 @@ class InputDecoration {
   /// of [InputDecoration] that changes the color of the label to the
   /// [InputDecoration.errorStyle] color or [ColorScheme.error].
   ///
+  /// When the input field receives focus, the font size of [InputDecoration.label] is
+  /// scaled down by 75%.
+  ///
   /// {@tool dartpad}
   /// It's possible to override the label style for just the error state, or
   /// just the default state, or both.
@@ -2848,7 +2860,15 @@ class InputDecoration {
 
   /// The maximum number of lines the [helperText] can occupy.
   ///
-  /// Defaults to null, which means that the [helperText] is not limited.
+  /// Defaults to null, which means that soft line breaks in [helperText] are
+  /// truncated with an ellipse while hard line breaks are respected.
+  /// For example, a [helperText] that overflows the width of the field will be
+  /// truncated with an ellipse. However, a [helperText] with explicit linebreak
+  /// characters (\n) will display on multiple lines.
+  ///
+  /// To cause a long [helperText] to wrap, either set [helperMaxLines] or use
+  /// [helper] which offers more flexibility. For instance, it can be set to a
+  /// [Text] widget with a specific overflow value.
   ///
   /// This value is passed along to the [Text.maxLines] attribute
   /// of the [Text] widget used to display the helper.
@@ -2901,6 +2921,15 @@ class InputDecoration {
   /// If [InputDecorationTheme.hintFadeDuration] is null defaults to 20ms.
   final Duration? hintFadeDuration;
 
+  /// Whether the input field's height should always be greater than or equal to
+  /// the height of the [hintText], even if the [hintText] is not visible.
+  ///
+  /// The [InputDecorator] widget ignores [hintText] during layout when
+  /// it's not visible, if this flag is set to false.
+  ///
+  /// Defaults to true.
+  final bool maintainHintHeight;
+
   /// Optional widget that appears below the [InputDecorator.child] and the border.
   ///
   /// If non-null, the border's color animates to red and the [helperText] is not shown.
@@ -2937,7 +2966,15 @@ class InputDecoration {
 
   /// The maximum number of lines the [errorText] can occupy.
   ///
-  /// Defaults to null, which means that the [errorText] is not limited.
+  /// Defaults to null, which means that soft line breaks in [errorText] are
+  /// truncated with an ellipse while hard line breaks are respected.
+  /// For example, an [errorText] that overflows the width of the field will be
+  /// truncated with an ellipse. However, an [errorText] with explicit linebreak
+  /// characters (\n) will display on multiple lines.
+  ///
+  /// To cause a long [errorText] to wrap, either set [errorMaxLines] or use
+  /// [error] which offers more flexibility. For instance, it can be set to a
+  /// [Text] widget with a specific overflow value.
   ///
   /// This value is passed along to the [Text.maxLines] attribute
   /// of the [Text] widget used to display the error.
@@ -3089,9 +3126,10 @@ class InputDecoration {
   /// This can be used to modify the [BoxConstraints] surrounding [prefixIcon].
   ///
   /// This property is particularly useful for getting the decoration's height
-  /// less than 48px. This can be achieved by setting [isDense] to true and
-  /// setting the constraints' minimum height and width to a value lower than
-  /// 48px.
+  /// less than the minimum tappable height (which is 48px when the visual
+  /// density is set to [VisualDensity.standard]). This can be achieved by
+  /// setting [isDense] to true and setting the constraints' minimum height
+  /// and width to a value lower than the minimum tappable size.
   ///
   /// {@tool dartpad}
   /// This example shows the differences between two `TextField` widgets when
@@ -3263,9 +3301,10 @@ class InputDecoration {
   /// This can be used to modify the [BoxConstraints] surrounding [suffixIcon].
   ///
   /// This property is particularly useful for getting the decoration's height
-  /// less than 48px. This can be achieved by setting [isDense] to true and
-  /// setting the constraints' minimum height and width to a value lower than
-  /// 48px.
+  /// less than the minimum tappable height (which is 48px when the visual
+  /// density is set to [VisualDensity.standard]). This can be achieved by
+  /// setting [isDense] to true and setting the constraints' minimum height
+  /// and width to a value lower than the minimum tappable size.
   ///
   /// If null, a [BoxConstraints] with a minimum width and height of 48px is
   /// used.
@@ -3573,6 +3612,7 @@ class InputDecoration {
     TextDirection? hintTextDirection,
     Duration? hintFadeDuration,
     int? hintMaxLines,
+    bool? maintainHintHeight,
     Widget? error,
     String? errorText,
     TextStyle? errorStyle,
@@ -3628,6 +3668,7 @@ class InputDecoration {
       hintTextDirection: hintTextDirection ?? this.hintTextDirection,
       hintMaxLines: hintMaxLines ?? this.hintMaxLines,
       hintFadeDuration: hintFadeDuration ?? this.hintFadeDuration,
+      maintainHintHeight: maintainHintHeight ?? this.maintainHintHeight,
       error: error ?? this.error,
       errorText: errorText ?? this.errorText,
       errorStyle: errorStyle ?? this.errorStyle,
@@ -3692,8 +3733,10 @@ class InputDecoration {
       iconColor: iconColor ?? theme.iconColor,
       prefixStyle: prefixStyle ?? theme.prefixStyle,
       prefixIconColor: prefixIconColor ?? theme.prefixIconColor,
+      prefixIconConstraints: prefixIconConstraints ?? theme.prefixIconConstraints,
       suffixStyle: suffixStyle ?? theme.suffixStyle,
       suffixIconColor: suffixIconColor ?? theme.suffixIconColor,
+      suffixIconConstraints: suffixIconConstraints ?? theme.suffixIconConstraints,
       counterStyle: counterStyle ?? theme.counterStyle,
       filled: filled ?? theme.filled,
       fillColor: fillColor ?? theme.fillColor,
@@ -3734,6 +3777,7 @@ class InputDecoration {
         && other.hintTextDirection == hintTextDirection
         && other.hintMaxLines == hintMaxLines
         && other.hintFadeDuration == hintFadeDuration
+        && other.maintainHintHeight == maintainHintHeight
         && other.error == error
         && other.errorText == errorText
         && other.errorStyle == errorStyle
@@ -3792,6 +3836,7 @@ class InputDecoration {
       hintTextDirection,
       hintMaxLines,
       hintFadeDuration,
+      maintainHintHeight,
       error,
       errorText,
       errorStyle,
@@ -3848,6 +3893,7 @@ class InputDecoration {
       if (hintText != null) 'hintText: "$hintText"',
       if (hintMaxLines != null) 'hintMaxLines: "$hintMaxLines"',
       if (hintFadeDuration != null) 'hintFadeDuration: "$hintFadeDuration"',
+      if (!maintainHintHeight) 'maintainHintHeight: false',
       if (error != null) 'error: "$error"',
       if (errorText != null) 'errorText: "$errorText"',
       if (errorStyle != null) 'errorStyle: "$errorStyle"',
@@ -3921,8 +3967,10 @@ class InputDecorationTheme with Diagnosticable {
     this.iconColor,
     this.prefixStyle,
     this.prefixIconColor,
+    this.prefixIconConstraints,
     this.suffixStyle,
     this.suffixIconColor,
+    this.suffixIconConstraints,
     this.counterStyle,
     this.filled = false,
     this.fillColor,
@@ -4063,6 +4111,21 @@ class InputDecorationTheme with Diagnosticable {
   /// If null, defaults to the [ColorScheme.primary].
   final Color? prefixIconColor;
 
+  /// The constraints to use for [InputDecoration.prefixIconConstraints].
+  ///
+  /// This can be used to modify the [BoxConstraints] surrounding
+  /// [InputDecoration.prefixIcon].
+  ///
+  /// This property is particularly useful for getting the decoration's height
+  /// less than the minimum tappable height (which is 48px when the visual
+  /// density is set to [VisualDensity.standard]). This can be achieved by
+  /// setting [isDense] to true and setting the constraints' minimum height
+  /// and width to a value lower than the minimum tappable size.
+  ///
+  /// If null, [BoxConstraints] with a minimum width and height of 48px is
+  /// used.
+  final BoxConstraints? prefixIconConstraints;
+
   /// The style to use for the [InputDecoration.suffixText].
   ///
   /// If [suffixStyle] is a [WidgetStateTextStyle], then the effective
@@ -4080,6 +4143,21 @@ class InputDecorationTheme with Diagnosticable {
   ///
   /// If null, defaults to the [ColorScheme.primary].
   final Color? suffixIconColor;
+
+  /// The constraints to use for [InputDecoration.suffixIconConstraints].
+  ///
+  /// This can be used to modify the [BoxConstraints] surrounding
+  /// [InputDecoration.suffixIcon].
+  ///
+  /// This property is particularly useful for getting the decoration's height
+  /// less than the minimum tappable height (which is 48px when the visual
+  /// density is set to [VisualDensity.standard]). This can be achieved by
+  /// setting [isDense] to true and setting the constraints' minimum height
+  /// and width to a value lower than the minimum tappable size.
+  ///
+  /// If null, [BoxConstraints] with a minimum width and height of 48px is
+  /// used.
+  final BoxConstraints? suffixIconConstraints;
 
   /// The style to use for the [InputDecoration.counterText].
   ///
@@ -4332,8 +4410,10 @@ class InputDecorationTheme with Diagnosticable {
     Color? iconColor,
     TextStyle? prefixStyle,
     Color? prefixIconColor,
+    BoxConstraints? prefixIconConstraints,
     TextStyle? suffixStyle,
     Color? suffixIconColor,
+    BoxConstraints? suffixIconConstraints,
     TextStyle? counterStyle,
     bool? filled,
     Color? fillColor,
@@ -4367,8 +4447,10 @@ class InputDecorationTheme with Diagnosticable {
       isCollapsed: isCollapsed ?? this.isCollapsed,
       prefixStyle: prefixStyle ?? this.prefixStyle,
       prefixIconColor: prefixIconColor ?? this.prefixIconColor,
+      prefixIconConstraints: prefixIconConstraints ?? this.prefixIconConstraints,
       suffixStyle: suffixStyle ?? this.suffixStyle,
       suffixIconColor: suffixIconColor ?? this.suffixIconColor,
+      suffixIconConstraints: suffixIconConstraints ?? this.suffixIconConstraints,
       counterStyle: counterStyle ?? this.counterStyle,
       filled: filled ?? this.filled,
       fillColor: fillColor ?? this.fillColor,
@@ -4413,8 +4495,10 @@ class InputDecorationTheme with Diagnosticable {
       iconColor: iconColor ?? inputDecorationTheme.iconColor,
       prefixStyle: prefixStyle ?? inputDecorationTheme.prefixStyle,
       prefixIconColor: prefixIconColor ?? inputDecorationTheme.prefixIconColor,
+      prefixIconConstraints: prefixIconConstraints ?? inputDecorationTheme.prefixIconConstraints,
       suffixStyle: suffixStyle ?? inputDecorationTheme.suffixStyle,
       suffixIconColor: suffixIconColor ?? inputDecorationTheme.suffixIconColor,
+      suffixIconConstraints: suffixIconConstraints ?? inputDecorationTheme.suffixIconConstraints,
       counterStyle: counterStyle ?? inputDecorationTheme.counterStyle,
       fillColor: fillColor ?? inputDecorationTheme.fillColor,
       activeIndicatorBorder: activeIndicatorBorder ?? inputDecorationTheme.activeIndicatorBorder,
@@ -4448,11 +4532,13 @@ class InputDecorationTheme with Diagnosticable {
     iconColor,
     prefixStyle,
     prefixIconColor,
+    prefixIconConstraints,
     suffixStyle,
     suffixIconColor,
-    counterStyle,
-    filled,
+    suffixIconConstraints,
     Object.hash(
+      counterStyle,
+      filled,
       fillColor,
       activeIndicatorBorder,
       outlineBorder,
@@ -4493,8 +4579,10 @@ class InputDecorationTheme with Diagnosticable {
         && other.iconColor == iconColor
         && other.prefixStyle == prefixStyle
         && other.prefixIconColor == prefixIconColor
+        && other.prefixIconConstraints == prefixIconConstraints
         && other.suffixStyle == suffixStyle
         && other.suffixIconColor == suffixIconColor
+        && other.suffixIconConstraints == suffixIconConstraints
         && other.counterStyle == counterStyle
         && other.floatingLabelBehavior == floatingLabelBehavior
         && other.floatingLabelAlignment == floatingLabelAlignment
@@ -4534,8 +4622,10 @@ class InputDecorationTheme with Diagnosticable {
     properties.add(DiagnosticsProperty<bool>('isCollapsed', isCollapsed, defaultValue: defaultTheme.isCollapsed));
     properties.add(DiagnosticsProperty<Color>('iconColor', iconColor, defaultValue: defaultTheme.iconColor));
     properties.add(DiagnosticsProperty<Color>('prefixIconColor', prefixIconColor, defaultValue: defaultTheme.prefixIconColor));
+    properties.add(DiagnosticsProperty<BoxConstraints>('prefixIconConstraints', prefixIconConstraints, defaultValue: defaultTheme.prefixIconConstraints));
     properties.add(DiagnosticsProperty<TextStyle>('prefixStyle', prefixStyle, defaultValue: defaultTheme.prefixStyle));
     properties.add(DiagnosticsProperty<Color>('suffixIconColor', suffixIconColor, defaultValue: defaultTheme.suffixIconColor));
+    properties.add(DiagnosticsProperty<BoxConstraints>('suffixIconConstraints', suffixIconConstraints, defaultValue: defaultTheme.suffixIconConstraints));
     properties.add(DiagnosticsProperty<TextStyle>('suffixStyle', suffixStyle, defaultValue: defaultTheme.suffixStyle));
     properties.add(DiagnosticsProperty<TextStyle>('counterStyle', counterStyle, defaultValue: defaultTheme.counterStyle));
     properties.add(DiagnosticsProperty<bool>('filled', filled, defaultValue: defaultTheme.filled));

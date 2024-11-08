@@ -11,6 +11,7 @@ import 'dart:ui';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import '../widgets/clipboard_utils.dart';
@@ -602,7 +603,7 @@ void main() {
       expect(defaultDialogMaterial.elevation, datePickerDefaultDialogTheme.elevation);
 
       // Test that it honors ThemeData.dialogTheme settings
-      const DialogTheme customDialogTheme = DialogTheme(
+      const DialogThemeData customDialogTheme = DialogThemeData(
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.all(Radius.circular(40.0)),
         ),
@@ -1682,6 +1683,23 @@ void main() {
       });
       semantics.dispose();
     });
+
+    // Regression test for https://github.com/flutter/flutter/pull/152705
+    testWidgets('datepicker dialog semantics node not focusable', (WidgetTester tester) async {
+      await tester.pumpWidget(MaterialApp(
+        home: Material(
+          child: DatePickerDialog(
+            initialDate: initialDate,
+            firstDate: firstDate,
+            lastDate: lastDate,
+          ),
+        ),
+      ));
+
+      final SemanticsNode node = tester.semantics.find(find.byType(DatePickerDialog));
+      final SemanticsData semanticsData = node.getSemanticsData();
+      expect(semanticsData.hasFlag(SemanticsFlag.isFocusable), false);
+    });
   });
 
   group('Keyboard navigation', () {
@@ -2161,6 +2179,22 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byType(TextField), findsNothing);
     });
+  });
+
+  testWidgets('DatePickerDialog with updated insetPadding', (WidgetTester tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: Material(
+        child: DatePickerDialog(
+          initialDate: initialDate,
+          firstDate: firstDate,
+          lastDate: lastDate,
+          insetPadding: const EdgeInsets.fromLTRB(10.0, 20.0, 30.0, 40.0),
+        ),
+      ),
+    ));
+
+    final Dialog dialog = tester.widget<Dialog>(find.byType(Dialog));
+    expect(dialog.insetPadding, const EdgeInsets.fromLTRB(10.0, 20.0, 30.0, 40.0));
   });
 
   group('Landscape input-only date picker headers use headlineSmall', () {

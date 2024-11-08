@@ -57,6 +57,7 @@ class DwdsWebRunnerFactory extends WebRunnerFactory {
     required SystemClock systemClock,
     required Usage usage,
     required Analytics analytics,
+    required bool useImplicitPubspecResolution,
     bool machine = false,
   }) {
     return ResidentWebRunner(
@@ -72,6 +73,7 @@ class DwdsWebRunnerFactory extends WebRunnerFactory {
       systemClock: systemClock,
       fileSystem: fileSystem,
       logger: logger,
+      useImplicitPubspecResolution: useImplicitPubspecResolution,
     );
   }
 }
@@ -87,6 +89,7 @@ class ResidentWebRunner extends ResidentRunner {
     bool stayResident = true,
     bool machine = false,
     required this.flutterProject,
+    required bool useImplicitPubspecResolution,
     required DebuggingOptions debuggingOptions,
     required FileSystem fileSystem,
     required Logger logger,
@@ -102,6 +105,7 @@ class ResidentWebRunner extends ResidentRunner {
        _usage = usage,
        _analytics = analytics,
        _urlTunneller = urlTunneller,
+       _useImplicitPubspecResolution = useImplicitPubspecResolution,
        super(
           <FlutterDevice>[device],
           target: target ?? fileSystem.path.join('lib', 'main.dart'),
@@ -109,6 +113,7 @@ class ResidentWebRunner extends ResidentRunner {
           stayResident: stayResident,
           machine: machine,
           devtoolsHandler: devtoolsHandler,
+          useImplicitPubspecResolution: useImplicitPubspecResolution,
         );
 
   final FileSystem _fileSystem;
@@ -117,6 +122,7 @@ class ResidentWebRunner extends ResidentRunner {
   final Usage _usage;
   final Analytics _analytics;
   final UrlTunneller? _urlTunneller;
+  final bool _useImplicitPubspecResolution;
 
   @override
   Logger get logger => _logger;
@@ -319,7 +325,7 @@ Please provide a valid TCP port (an integer between 0 and 65535, inclusive).
           ddcModuleSystem: debuggingOptions.buildInfo.ddcModuleFormat == DdcModuleFormat.ddc,
           webRenderer: debuggingOptions.webRenderer,
           isWasm: debuggingOptions.webUseWasm,
-          useLocalCanvasKit: debuggingOptions.webUseLocalCanvaskit,
+          useLocalCanvasKit: debuggingOptions.buildInfo.useLocalCanvasKit,
           rootDirectory: fileSystem.directory(projectRootPath),
         );
         Uri url = await device!.devFS!.create();
@@ -345,6 +351,7 @@ Please provide a valid TCP port (an integer between 0 and 65535, inclusive).
             flutterVersion: globals.flutterVersion,
             usage: globals.flutterUsage,
             analytics: globals.analytics,
+            useImplicitPubspecResolution: _useImplicitPubspecResolution,
           );
           await webBuilder.buildWeb(
             flutterProject,
@@ -383,22 +390,29 @@ Please provide a valid TCP port (an integer between 0 and 65535, inclusive).
       appFailedToStart();
       _logger.printError('$error', stackTrace: stackTrace);
       throwToolExit(kExitMessage);
+    } on HttpException catch (error, stackTrace) {
+      appFailedToStart();
+      _logger.printError('$error', stackTrace: stackTrace);
+      throwToolExit(kExitMessage);
     } on Exception {
       appFailedToStart();
       rethrow;
     }
   }
 
-  WebCompilerConfig get _compilerConfig => (debuggingOptions.webUseWasm)
-    ? WasmCompilerConfig(
+  WebCompilerConfig get _compilerConfig {
+    if (debuggingOptions.webUseWasm) {
+      return WasmCompilerConfig(
         optimizationLevel: 0,
         stripWasm: false,
         renderer: debuggingOptions.webRenderer
-      )
-    : JsCompilerConfig.run(
-        nativeNullAssertions: debuggingOptions.nativeNullAssertions,
-        renderer: debuggingOptions.webRenderer,
       );
+    }
+    return JsCompilerConfig.run(
+      nativeNullAssertions: debuggingOptions.nativeNullAssertions,
+      renderer: debuggingOptions.webRenderer,
+    );
+  }
 
   @override
   Future<OperationResult> restart({
@@ -434,6 +448,7 @@ Please provide a valid TCP port (an integer between 0 and 65535, inclusive).
           flutterVersion: globals.flutterVersion,
           usage: globals.flutterUsage,
           analytics: globals.analytics,
+          useImplicitPubspecResolution: _useImplicitPubspecResolution,
         );
         await webBuilder.buildWeb(
           flutterProject,
@@ -517,7 +532,10 @@ Please provide a valid TCP port (an integer between 0 and 65535, inclusive).
       result = _generatedEntrypointDirectory!.childFile('web_entrypoint.dart');
 
       // Generates the generated_plugin_registrar
-      await injectBuildTimePluginFiles(flutterProject, webPlatform: true, destination: _generatedEntrypointDirectory!);
+      await injectBuildTimePluginFilesForWebPlatform(
+        flutterProject,
+        destination: _generatedEntrypointDirectory!,
+      );
       // The below works because `injectBuildTimePluginFiles` is configured to write
       // the web_plugin_registrant.dart file alongside the generated main.dart
       const String generatedImport = 'web_plugin_registrant.dart';
@@ -556,7 +574,7 @@ Please provide a valid TCP port (an integer between 0 and 65535, inclusive).
     if (rebuildBundle) {
       _logger.printTrace('Updating assets');
       final int result = await assetBundle.build(
-        packagesPath: debuggingOptions.buildInfo.packageConfigPath,
+        packageConfigPath: debuggingOptions.buildInfo.packageConfigPath,
         targetPlatform: TargetPlatform.web_javascript,
       );
       if (result != 0) {
@@ -604,10 +622,19 @@ Please provide a valid TCP port (an integer between 0 and 65535, inclusive).
   }) async {
     if (_chromiumLauncher != null) {
       final Chromium chrome = await _chromiumLauncher!.connectedInstance;
-      final ChromeTab? chromeTab = await chrome.chromeConnection.getTab((ChromeTab chromeTab) {
-        return !chromeTab.url.startsWith('chrome-extension');
-      }, retryFor: const Duration(seconds: 5));
+      final ChromeTab? chromeTab = await getChromeTabGuarded(
+        chrome.chromeConnection,
+        (ChromeTab chromeTab) {
+          return !chromeTab.url.startsWith('chrome-extension');
+        },
+        retryFor: const Duration(seconds: 5),
+        onIoError: (Object error, StackTrace stackTrace) {
+          // We were unable to unable to communicate with Chrome.
+          _logger.printError(error.toString(), stackTrace: stackTrace);
+        }
+      );
       if (chromeTab == null) {
+        appFailedToStart();
         throwToolExit('Failed to connect to Chrome instance.');
       }
       _wipConnection = await chromeTab.connect();
