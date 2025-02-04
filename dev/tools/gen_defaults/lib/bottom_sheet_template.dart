@@ -20,7 +20,7 @@ class _${blockName}DefaultsM3 extends BottomSheetThemeData {
       elevation: ${elevation("md.comp.sheet.bottom.docked.standard.container")},
       modalElevation: ${elevation("md.comp.sheet.bottom.docked.modal.container")},
       shape: ${shape("md.comp.sheet.bottom.docked.container")},
-      constraints: const BoxConstraints(maxWidth: 640),
+      constraints: const BoxConstraints(maxWidth: 640, maxHeight: 640),
     );
 
   final BuildContext context;
@@ -42,7 +42,7 @@ class _${blockName}DefaultsM3 extends BottomSheetThemeData {
   Size? get dragHandleSize => ${size("md.comp.sheet.bottom.docked.drag-handle")};
 
   @override
-  BoxConstraints? get constraints => const BoxConstraints(maxWidth: 640.0);
+  BoxConstraints? get constraints => const BoxConstraints(maxWidth: 640.0, maxHeight: 640);
 }
 ''';
 }

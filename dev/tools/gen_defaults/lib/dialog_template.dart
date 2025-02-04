@@ -22,6 +22,7 @@ class _${blockName}DefaultsM3 extends DialogThemeData {
         elevation: ${elevation("md.comp.dialog.container")},
         shape: ${shape("md.comp.dialog.container")},
         clipBehavior: Clip.none,
+        constraints: const BoxConstraints(maxWidth: 640),
       );
 
   final BuildContext context;
@@ -48,6 +49,9 @@ class _${blockName}DefaultsM3 extends DialogThemeData {
 
   @override
   EdgeInsetsGeometry? get actionsPadding => const EdgeInsets.only(left: 24.0, right: 24.0, bottom: 24.0);
+
+  @override
+  BoxConstraints? get constraints => const BoxConstraints(maxWidth: 560.0);
 }
 ''';
 }
