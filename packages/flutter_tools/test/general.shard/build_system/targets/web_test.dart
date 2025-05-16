@@ -23,6 +23,7 @@ import '../../../src/common.dart';
 import '../../../src/fake_process_manager.dart';
 import '../../../src/fake_pub_deps.dart';
 import '../../../src/fakes.dart';
+import '../../../src/package_config.dart';
 import '../../../src/testbed.dart';
 
 const List<String> _kDart2jsLinuxArgs = <String>[
@@ -42,7 +43,7 @@ const List<String> _kDart2WasmLinuxArgs = <String>[
 ];
 
 void main() {
-  late Testbed testbed;
+  late TestBed testbed;
   late Environment environment;
   late FakeProcessManager processManager;
 
@@ -59,23 +60,18 @@ void main() {
   );
 
   setUp(() {
-    testbed = Testbed(
+    testbed = TestBed(
       setup: () {
-        globals.fs.directory('.dart_tool').childFile('package_config.json')
-          ..createSync(recursive: true)
-          ..writeAsStringSync('''
-{
-  "configVersion": 2,
-  "packages": [
-    {
-      "name": "foo",
-      "rootUri": "../foo/",
-      "packageUri": "lib/",
-      "languageVersion": "2.7"
-    }
-  ]
-}
+        globals.fs.currentDirectory.childFile('pubspec.yaml').writeAsStringSync('''
+name: foo
 ''');
+
+        writePackageConfigFile(
+          directory: globals.fs.currentDirectory,
+          mainLibName: 'my_app',
+          packages: <String, String>{'foo': 'foo/'},
+          languageVersions: <String, String>{'foo': '2.7'},
+        );
         globals.fs.currentDirectory.childDirectory('bar').createSync();
         processManager = FakeProcessManager.empty();
         globals.fs
@@ -204,6 +200,41 @@ void main() {
   );
 
   test(
+    'WebTemplatedFiles includes serviceWorkerSettings in flutter_bootstrap.js by default',
+    () => testbed.run(() async {
+      final Directory webResources = environment.projectDir.childDirectory('web');
+      environment.defines[kServiceWorkerStrategy] = 'none';
+      webResources.childFile('index.html').createSync(recursive: true);
+      environment.buildDir.childFile('main.dart.js').createSync();
+      await WebTemplatedFiles(<Map<String, Object?>>[]).build(environment);
+
+      expect(
+        environment.outputDir.childFile('flutter_bootstrap.js').readAsStringSync(),
+        contains('_flutter.loader.load();'),
+      );
+    }),
+  );
+
+  test(
+    'WebTemplatedFiles omits serviceWorkerSettings in flutter_bootstrap.js when environment specifies',
+    () => testbed.run(() async {
+      final Directory webResources = environment.projectDir.childDirectory('web');
+      webResources.childFile('index.html').createSync(recursive: true);
+      environment.buildDir.childFile('main.dart.js').createSync();
+      await WebTemplatedFiles(<Map<String, Object?>>[]).build(environment);
+
+      expect(
+        environment.outputDir.childFile('flutter_bootstrap.js').readAsStringSync(),
+        stringContainsInOrder(<String>[
+          '_flutter.loader.load({',
+          'serviceWorkerSettings',
+          'serviceWorkerVersion',
+        ]),
+      );
+    }),
+  );
+
+  test(
     'null base href does not override existing base href in index.html',
     () => testbed.run(() async {
       environment.defines[kBuildMode] = 'release';
@@ -231,14 +262,18 @@ void main() {
         ..createSync(recursive: true)
         ..writeAsStringSync('A');
       environment.buildDir.childFile('main.dart.js').createSync();
+      environment.buildDir.childFile('main.dart.js.info.json').createSync();
       environment.buildDir.childFile('main.dart.js.map').createSync();
       environment.buildDir.childFile('main.dart.js_1.part.js').createSync();
       environment.buildDir.childFile('main.dart.js_1.part.js.map').createSync();
 
-      await WebReleaseBundle(<WebCompilerConfig>[const JsCompilerConfig()]).build(environment);
+      await WebReleaseBundle(<WebCompilerConfig>[
+        const JsCompilerConfig(dumpInfo: true),
+      ]).build(environment);
 
       expect(environment.outputDir.childFile('foo.txt').readAsStringSync(), 'A');
       expect(environment.outputDir.childFile('main.dart.js').existsSync(), true);
+      expect(environment.outputDir.childFile('main.dart.js.info.json').existsSync(), true);
       expect(environment.outputDir.childFile('main.dart.js.map').existsSync(), true);
       expect(environment.outputDir.childFile('main.dart.js_1.part.js').existsSync(), true);
       expect(environment.outputDir.childFile('main.dart.js_1.part.js.map').existsSync(), true);
@@ -1140,7 +1175,7 @@ void main() {
     WebRendererMode.canvaskit,
     WebRendererMode.skwasm,
   ]) {
-    for (int level = 1; level <= 4; level++) {
+    for (final int? level in <int?>[null, 0, 1, 2, 3, 4]) {
       for (final bool strip in <bool>[true, false]) {
         for (final List<String> defines in const <List<String>>[
           <String>[],
@@ -1151,6 +1186,13 @@ void main() {
               test(
                 'Dart2WasmTarget invokes dart2wasm with renderer=$renderer, -O$level, stripping=$strip, defines=$defines, modeMode=$buildMode sourceMaps=$sourceMaps',
                 () => testbed.run(() async {
+                  final int expectedLevel =
+                      level ??
+                      switch (buildMode) {
+                        'debug' => 0,
+                        'profile' || 'release' => 2,
+                        _ => throw UnimplementedError(),
+                      };
                   environment.defines[kBuildMode] = buildMode;
                   environment.defines[kDartDefines] = encodeDartDefines(defines);
 
@@ -1182,7 +1224,7 @@ void main() {
                         ],
                         '-DFLUTTER_WEB_CANVASKIT_URL=https://www.gstatic.com/flutter-canvaskit/abcdefghijklmnopqrstuvwxyz/',
                         '--extra-compiler-option=--depfile=${depFile.absolute.path}',
-                        '-O$level',
+                        '-O$expectedLevel',
                         if (strip && buildMode == 'release') '--strip-wasm' else '--no-strip-wasm',
                         if (!sourceMaps) '--no-source-maps',
                         if (buildMode == 'debug') '--extra-compiler-option=--enable-asserts',
@@ -1229,7 +1271,6 @@ void main() {
       JsCompilerConfig(optimizationLevel: 0),
       JsCompilerConfig(noFrequencyBasedMinification: true),
       JsCompilerConfig(sourceMaps: false),
-      JsCompilerConfig(renderer: WebRendererMode.html),
 
       // All properties non-default
       JsCompilerConfig(
@@ -1239,7 +1280,6 @@ void main() {
         optimizationLevel: 0,
         noFrequencyBasedMinification: true,
         sourceMaps: false,
-        renderer: WebRendererMode.html,
       ),
     ];
 

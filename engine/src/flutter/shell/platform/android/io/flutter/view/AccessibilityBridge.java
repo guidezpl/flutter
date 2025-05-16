@@ -7,7 +7,6 @@ package io.flutter.view;
 import static io.flutter.Build.API_LEVELS;
 
 import android.annotation.SuppressLint;
-import android.annotation.TargetApi;
 import android.app.Activity;
 import android.content.ContentResolver;
 import android.content.Context;
@@ -24,9 +23,9 @@ import android.text.SpannableString;
 import android.text.TextUtils;
 import android.text.style.LocaleSpan;
 import android.text.style.TtsSpan;
+import android.text.style.URLSpan;
 import android.view.MotionEvent;
 import android.view.View;
-import android.view.WindowInsets;
 import android.view.WindowManager;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityManager;
@@ -302,6 +301,17 @@ public class AccessibilityBridge extends AccessibilityNodeProvider {
         /** The Dart application would like the given {@code message} to be announced. */
         @Override
         public void announce(@NonNull String message) {
+          if (Build.VERSION.SDK_INT >= API_LEVELS.API_36) {
+            Log.w(
+                TAG,
+                "Using AnnounceSemanticsEvent for accessibility is deprecated on Android. "
+                    + "Migrate to using semantic properties for a more robust and accessible "
+                    + "user experience.\n"
+                    + "Flutter: If you are unsure why you are seeing this bug, it might be because "
+                    + "you are using a widget that calls this method. See https://github.com/flutter/flutter/issues/165510 "
+                    + "for more details.\n"
+                    + "Android documentation: https://developer.android.com/reference/android/view/View#announceForAccessibility(java.lang.CharSequence)");
+          }
           rootAccessibilityView.announceForAccessibility(message);
         }
 
@@ -553,7 +563,6 @@ public class AccessibilityBridge extends AccessibilityNodeProvider {
                 accessibilityFocusedSemanticsNode, o -> o.hasFlag(Flag.HAS_IMPLICIT_SCROLLING)));
   }
 
-  @TargetApi(API_LEVELS.API_31)
   @RequiresApi(API_LEVELS.API_31)
   private void setBoldTextFlag() {
     if (rootAccessibilityView == null || rootAccessibilityView.getResources() == null) {
@@ -748,7 +757,7 @@ public class AccessibilityBridge extends AccessibilityNodeProvider {
       result.addAction(AccessibilityNodeInfo.ACTION_SET_TEXT);
     }
 
-    if (semanticsNode.hasFlag(Flag.IS_BUTTON) || semanticsNode.hasFlag(Flag.IS_LINK)) {
+    if (semanticsNode.hasFlag(Flag.IS_BUTTON)) {
       result.setClassName("android.widget.Button");
     }
     if (semanticsNode.hasFlag(Flag.IS_IMAGE)) {
@@ -1639,31 +1648,6 @@ public class AccessibilityBridge extends AccessibilityNodeProvider {
     if (rootObject != null) {
       final float[] identity = new float[16];
       Matrix.setIdentityM(identity, 0);
-      // In Android devices API 23 and above, the system nav bar can be placed on the left side
-      // of the screen in landscape mode. We must handle the translation ourselves for the
-      // a11y nodes.
-      if (Build.VERSION.SDK_INT >= API_LEVELS.API_23) {
-        boolean needsToApplyLeftCutoutInset = true;
-        // In Android devices API 28 and above, the `layoutInDisplayCutoutMode` window attribute
-        // can be set to allow overlapping content within the cutout area. Query the attribute
-        // to figure out whether the content overlaps with the cutout and decide whether to
-        // apply cutout inset.
-        if (Build.VERSION.SDK_INT >= API_LEVELS.API_28) {
-          needsToApplyLeftCutoutInset = doesLayoutInDisplayCutoutModeRequireLeftInset();
-        }
-
-        if (needsToApplyLeftCutoutInset) {
-          WindowInsets insets = rootAccessibilityView.getRootWindowInsets();
-          if (insets != null) {
-            if (!lastLeftFrameInset.equals(insets.getSystemWindowInsetLeft())) {
-              rootObject.globalGeometryDirty = true;
-              rootObject.inverseTransformDirty = true;
-            }
-            lastLeftFrameInset = insets.getSystemWindowInsetLeft();
-            Matrix.translateM(identity, 0, lastLeftFrameInset, 0, 0);
-          }
-        }
-      }
       rootObject.updateRecursively(identity, visitedObjects, false);
       rootObject.collectRoutes(newRoutes);
     }
@@ -1940,7 +1924,6 @@ public class AccessibilityBridge extends AccessibilityNodeProvider {
     }
   }
 
-  @TargetApi(API_LEVELS.API_28)
   @RequiresApi(API_LEVELS.API_28)
   private void setAccessibilityPaneTitle(String title) {
     rootAccessibilityView.setAccessibilityPaneTitle(title);
@@ -1989,7 +1972,6 @@ public class AccessibilityBridge extends AccessibilityNodeProvider {
    *
    * <p>The {@code layoutInDisplayCutoutMode} is added after API level 28.
    */
-  @TargetApi(API_LEVELS.API_28)
   @RequiresApi(API_LEVELS.API_28)
   private boolean doesLayoutInDisplayCutoutModeRequireLeftInset() {
     Context context = rootAccessibilityView.getContext();
@@ -2096,7 +2078,7 @@ public class AccessibilityBridge extends AccessibilityNodeProvider {
   }
 
   // Must match SemanticsActions in semantics.dart
-  // https://github.com/flutter/engine/blob/main/lib/ui/semantics.dart
+  // https://github.com/flutter/flutter/blob/main/engine/src/flutter/lib/ui/semantics.dart
   public enum Action {
     TAP(1 << 0),
     LONG_PRESS(1 << 1),
@@ -2139,7 +2121,7 @@ public class AccessibilityBridge extends AccessibilityNodeProvider {
           & Action.SHOW_ON_SCREEN.value;
 
   // Must match SemanticsFlag in semantics.dart
-  // https://github.com/flutter/engine/blob/main/lib/ui/semantics.dart
+  // https://github.com/flutter/flutter/blob/main/engine/src/flutter/lib/ui/semantics.dart
   /* Package */ enum Flag {
     HAS_CHECKED_STATE(1 << 0),
     IS_CHECKED(1 << 1),
@@ -2169,7 +2151,9 @@ public class AccessibilityBridge extends AccessibilityNodeProvider {
     IS_CHECK_STATE_MIXED(1 << 25),
     HAS_EXPANDED_STATE(1 << 26),
     IS_EXPANDED(1 << 27),
-    HAS_SELECTED_STATE(1 << 28);
+    HAS_SELECTED_STATE(1 << 28),
+    HAS_REQUIRED_STATE(1 << 29),
+    IS_REQUIRED(1 << 30);
 
     final int value;
 
@@ -2262,6 +2246,7 @@ public class AccessibilityBridge extends AccessibilityNodeProvider {
   private enum StringAttributeType {
     SPELLOUT,
     LOCALE,
+    URL
   }
 
   private static class StringAttribute {
@@ -2276,6 +2261,10 @@ public class AccessibilityBridge extends AccessibilityNodeProvider {
     String locale;
   }
 
+  private static class UrlStringAttribute extends StringAttribute {
+    String url;
+  }
+
   /**
    * Flutter {@code SemanticsNode} represented in Java/Android.
    *
@@ -2286,7 +2275,8 @@ public class AccessibilityBridge extends AccessibilityNodeProvider {
    * analogous concept within Flutter.
    *
    * <p>To see how this {@code SemanticsNode}'s fields correspond to Flutter's semantics system, see
-   * semantics.dart: https://github.com/flutter/engine/blob/main/lib/ui/semantics.dart
+   * semantics.dart:
+   * https://github.com/flutter/flutter/blob/main/engine/src/flutter/lib/ui/semantics.dart
    */
   private static class SemanticsNode {
     private static boolean nullableHasAncestor(
@@ -2299,7 +2289,7 @@ public class AccessibilityBridge extends AccessibilityNodeProvider {
     // Flutter ID of this {@code SemanticsNode}.
     private int id = -1;
 
-    private int flags;
+    private long flags;
     private int actions;
     private int maxValueLength;
     private int currentValueLength;
@@ -2329,6 +2319,9 @@ public class AccessibilityBridge extends AccessibilityNodeProvider {
     // API level >= 28; otherwise, this is attached to the end of content description.
     @Nullable private String tooltip;
 
+    // The Url the widget's points to.
+    @Nullable private String linkUrl;
+
     // The id of the sibling node that is before this node in traversal
     // order.
     //
@@ -2346,7 +2339,7 @@ public class AccessibilityBridge extends AccessibilityNodeProvider {
     private TextDirection textDirection;
 
     private boolean hadPreviousConfig = false;
-    private int previousFlags;
+    private long previousFlags;
     private int previousActions;
     private int previousTextSelectionBase;
     private int previousTextSelectionExtent;
@@ -2495,7 +2488,7 @@ public class AccessibilityBridge extends AccessibilityNodeProvider {
       previousScrollExtentMax = scrollExtentMax;
       previousScrollExtentMin = scrollExtentMin;
 
-      flags = buffer.getInt();
+      flags = buffer.getLong();
       actions = buffer.getInt();
       maxValueLength = buffer.getInt();
       currentValueLength = buffer.getInt();
@@ -2539,6 +2532,9 @@ public class AccessibilityBridge extends AccessibilityNodeProvider {
 
       stringIndex = buffer.getInt();
       tooltip = stringIndex == -1 ? null : strings[stringIndex];
+
+      stringIndex = buffer.getInt();
+      linkUrl = stringIndex == -1 ? null : strings[stringIndex];
 
       textDirection = TextDirection.fromInt(buffer.getInt());
 
@@ -2832,7 +2828,21 @@ public class AccessibilityBridge extends AccessibilityNodeProvider {
     }
 
     private CharSequence getLabel() {
-      return createSpannableString(label, labelAttributes);
+      List<StringAttribute> attributes = labelAttributes;
+      if (linkUrl != null && linkUrl.length() > 0) {
+        if (attributes == null) {
+          attributes = new ArrayList<StringAttribute>();
+        } else {
+          attributes = new ArrayList<StringAttribute>(attributes);
+        }
+        UrlStringAttribute uriStringAttribute = new UrlStringAttribute();
+        uriStringAttribute.start = 0;
+        uriStringAttribute.end = label.length();
+        uriStringAttribute.url = linkUrl;
+        uriStringAttribute.type = StringAttributeType.URL;
+        attributes.add(uriStringAttribute);
+      }
+      return createSpannableString(label, attributes);
     }
 
     private CharSequence getHint() {
@@ -2889,6 +2899,13 @@ public class AccessibilityBridge extends AccessibilityNodeProvider {
                 Locale locale = Locale.forLanguageTag(localeAttribute.locale);
                 final LocaleSpan localeSpan = new LocaleSpan(locale);
                 spannableString.setSpan(localeSpan, attribute.start, attribute.end, 0);
+                break;
+              }
+            case URL:
+              {
+                UrlStringAttribute uriAttribute = (UrlStringAttribute) attribute;
+                final URLSpan urlSpan = new URLSpan(uriAttribute.url);
+                spannableString.setSpan(urlSpan, attribute.start, attribute.end, 0);
                 break;
               }
           }

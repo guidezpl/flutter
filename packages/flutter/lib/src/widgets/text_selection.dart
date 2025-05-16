@@ -348,15 +348,7 @@ class TextSelectionOverlay {
     required TextMagnifierConfiguration magnifierConfiguration,
   }) : _handlesVisible = handlesVisible,
        _value = value {
-    // TODO(polina-c): stop duplicating code across disposables
-    // https://github.com/flutter/flutter/issues/137435
-    if (kFlutterMemoryAllocationsEnabled) {
-      FlutterMemoryAllocations.instance.dispatchObjectCreated(
-        library: 'package:flutter/widgets.dart',
-        className: '$TextSelectionOverlay',
-        object: this,
-      );
-    }
+    assert(debugMaybeDispatchCreated('widgets', 'TextSelectionOverlay', this));
     renderObject.selectionStartInViewport.addListener(_updateTextSelectionOverlayVisibilities);
     renderObject.selectionEndInViewport.addListener(_updateTextSelectionOverlayVisibilities);
     _updateTextSelectionOverlayVisibilities();
@@ -607,11 +599,7 @@ class TextSelectionOverlay {
 
   /// {@macro flutter.widgets.SelectionOverlay.dispose}
   void dispose() {
-    // TODO(polina-c): stop duplicating code across disposables
-    // https://github.com/flutter/flutter/issues/137435
-    if (kFlutterMemoryAllocationsEnabled) {
-      FlutterMemoryAllocations.instance.dispatchObjectDisposed(object: this);
-    }
+    assert(debugMaybeDispatchDisposed(this));
     _selectionOverlay.dispose();
     renderObject.selectionStartInViewport.removeListener(_updateTextSelectionOverlayVisibilities);
     renderObject.selectionEndInViewport.removeListener(_updateTextSelectionOverlayVisibilities);
@@ -1050,15 +1038,7 @@ class SelectionOverlay {
        _selectionEndpoints = selectionEndpoints,
        _toolbarLocation = toolbarLocation,
        assert(debugCheckHasOverlay(context)) {
-    // TODO(polina-c): stop duplicating code across disposables
-    // https://github.com/flutter/flutter/issues/137435
-    if (kFlutterMemoryAllocationsEnabled) {
-      FlutterMemoryAllocations.instance.dispatchObjectCreated(
-        library: 'package:flutter/widgets.dart',
-        className: '$SelectionOverlay',
-        object: this,
-      );
-    }
+    assert(debugMaybeDispatchCreated('widgets', 'SelectionOverlay', this));
   }
 
   /// {@macro flutter.widgets.SelectionOverlay.context}
@@ -1619,11 +1599,7 @@ class SelectionOverlay {
   /// Disposes this object and release resources.
   /// {@endtemplate}
   void dispose() {
-    // TODO(polina-c): stop duplicating code across disposables
-    // https://github.com/flutter/flutter/issues/137435
-    if (kFlutterMemoryAllocationsEnabled) {
-      FlutterMemoryAllocations.instance.dispatchObjectDisposed(object: this);
-    }
+    assert(debugMaybeDispatchDisposed(this));
     hide();
     _magnifierInfo.dispose();
   }
@@ -2188,11 +2164,22 @@ class TextSelectionGestureDetectorBuilder {
 
   /// Whether to show the selection toolbar.
   ///
-  /// It is based on the signal source when a [onTapDown] is called. This getter
-  /// will return true if current [onTapDown] event is triggered by a touch or
-  /// a stylus.
+  /// It is based on the signal source when [onTapDown], [onSecondaryTapDown],
+  /// [onDragSelectionStart], or [onForcePressStart] is called. This getter
+  /// will return true if the current [onTapDown], or [onDragSelectionStart] event
+  /// is triggered by a touch or a stylus. It will always return true for the
+  /// current [onSecondaryTapDown] or [onForcePressStart] event.
   bool get shouldShowSelectionToolbar => _shouldShowSelectionToolbar;
   bool _shouldShowSelectionToolbar = true;
+
+  /// Whether to show the selection handles.
+  ///
+  /// It is based on the signal source when [onTapDown], [onSecondaryTapDown],
+  /// [onDragSelectionStart], is called. This getter will return true if the
+  /// current [onTapDown], [onSecondaryTapDown], or [onDragSelectionStart] event
+  /// is triggered by a touch or a stylus.
+  bool get shouldShowSelectionHandles => _shouldShowSelectionHandles;
+  bool _shouldShowSelectionHandles = true;
 
   /// The [State] of the [EditableText] for which the builder will provide a
   /// [TextSelectionGestureDetector].
@@ -2301,6 +2288,7 @@ class TextSelectionGestureDetectorBuilder {
     // https://github.com/flutter/flutter/issues/106586
     _shouldShowSelectionToolbar =
         kind == null || kind == PointerDeviceKind.touch || kind == PointerDeviceKind.stylus;
+    _shouldShowSelectionHandles = _shouldShowSelectionToolbar;
 
     // It is impossible to extend the selection when the shift key is pressed, if the
     // renderEditable.selection is invalid.
@@ -2482,6 +2470,7 @@ class TextSelectionGestureDetectorBuilder {
             // Precise devices should place the cursor at a precise position if the
             // word at the text position is not misspelled.
             renderEditable.selectPosition(cause: SelectionChangedCause.tap);
+            editableText.hideToolbar();
           case PointerDeviceKind.touch:
           case PointerDeviceKind.unknown:
             // If the word that was tapped is misspelled, select the word and show the spell check suggestions
@@ -2751,6 +2740,10 @@ class TextSelectionGestureDetectorBuilder {
     // See https://github.com/flutter/flutter/issues/115130.
     renderEditable.handleSecondaryTapDown(TapDownDetails(globalPosition: details.globalPosition));
     _shouldShowSelectionToolbar = true;
+    _shouldShowSelectionHandles =
+        details.kind == null ||
+        details.kind == PointerDeviceKind.touch ||
+        details.kind == PointerDeviceKind.stylus;
   }
 
   /// Handler for [TextSelectionGestureDetector.onDoubleTapDown].
@@ -2888,6 +2881,7 @@ class TextSelectionGestureDetectorBuilder {
     final PointerDeviceKind? kind = details.kind;
     _shouldShowSelectionToolbar =
         kind == null || kind == PointerDeviceKind.touch || kind == PointerDeviceKind.stylus;
+    _shouldShowSelectionHandles = _shouldShowSelectionToolbar;
 
     _dragStartSelection = renderEditable.selection;
     _dragStartScrollOffset = _scrollPosition;

@@ -5,17 +5,14 @@
 import 'dart:async';
 
 import 'package:file/file.dart';
+import 'package:flutter_tools/src/web/web_device.dart' show GoogleChromeDevice;
 
 import '../../src/common.dart';
 import '../test_driver.dart';
 import '../test_utils.dart';
 import 'hot_reload_with_asset.dart';
 
-void testAll({
-  bool chrome = false,
-  List<String> additionalCommandArgs = const <String>[],
-  Object? skip = false,
-}) {
+void testAll({bool chrome = false, List<String> additionalCommandArgs = const <String>[]}) {
   group('chrome: $chrome'
       '${additionalCommandArgs.isEmpty ? '' : ' with args: $additionalCommandArgs'}', () {
     late Directory tempDir;
@@ -52,7 +49,10 @@ void testAll({
         }
       });
       flutter.stdout.listen(printOnFailure);
-      await flutter.run(chrome: chrome, additionalCommandArgs: additionalCommandArgs);
+      await flutter.run(
+        device: GoogleChromeDevice.kChromeDeviceId,
+        additionalCommandArgs: additionalCommandArgs,
+      );
       await onFirstLoad.future;
 
       project.uncommentHotReloadPrint();
@@ -79,12 +79,15 @@ void testAll({
         }
       });
       flutter.stdout.listen(printOnFailure);
-      await flutter.run(chrome: chrome, additionalCommandArgs: additionalCommandArgs);
+      await flutter.run(
+        device: GoogleChromeDevice.kChromeDeviceId,
+        additionalCommandArgs: additionalCommandArgs,
+      );
       await onFirstLoad.future;
 
       project.uncommentHotReloadPrint();
       await flutter.hotRestart();
       await onSecondLoad.future;
     });
-  }, skip: skip);
+  });
 }

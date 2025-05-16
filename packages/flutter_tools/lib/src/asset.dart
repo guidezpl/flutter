@@ -72,7 +72,7 @@ abstract class AssetBundleFactory {
   AssetBundle createBundle();
 }
 
-enum AssetKind { regular, font, shader, model }
+enum AssetKind { regular, font, shader }
 
 /// Contains all information about an asset needed by tool the to prepare and
 /// copy an asset file to the build output.
@@ -827,7 +827,7 @@ class ManifestAssetBundle implements AssetBundle {
   }
 
   /// Prefixes family names and asset paths of fonts included from packages with
-  /// 'packages/<package_name>'
+  /// `packages/<package_name>`.
   List<Font> _parsePackageFonts(
     FlutterManifest manifest,
     String packageName,
@@ -954,22 +954,6 @@ class ManifestAssetBundle implements AssetBundle {
         packageName: packageName,
         attributedPackage: attributedPackage,
         assetKind: AssetKind.shader,
-        flavors: <String>{},
-        transformers: <AssetTransformerEntry>[],
-      );
-    }
-
-    for (final Uri modelUri in flutterManifest.models) {
-      _parseAssetFromFile(
-        packageConfig,
-        flutterManifest,
-        assetBase,
-        cache,
-        result,
-        modelUri,
-        packageName: packageName,
-        attributedPackage: attributedPackage,
-        assetKind: AssetKind.model,
         flavors: <String>{},
         transformers: <AssetTransformerEntry>[],
       );

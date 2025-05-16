@@ -51,7 +51,7 @@ const Map<String, HardwareType> kKnownHardware = <String, HardwareType>{
 
 /// A physical Android device or emulator.
 ///
-/// While [isEmulator] attempts to distinguish between the device categories,
+/// While [isLocalEmulator] attempts to distinguish between the device categories,
 /// this is a best effort process and not a guarantee; certain physical devices
 /// identify as emulators. These device identifiers may be added to the [kKnownHardware]
 /// map to specify that they are actually physical devices.
@@ -617,7 +617,6 @@ class AndroidDevice extends Device {
       );
     }
 
-    final String dartVmFlags = computeDartVmFlags(debuggingOptions);
     final String? traceAllowlist = debuggingOptions.traceAllowlist;
     final String? traceSkiaAllowlist = debuggingOptions.traceSkiaAllowlist;
     final String? traceToFile = debuggingOptions.traceToFile;
@@ -653,12 +652,6 @@ class AndroidDevice extends Device {
       if (debuggingOptions.traceSystrace) ...<String>['--ez', 'trace-systrace', 'true'],
       if (traceToFile != null) ...<String>['--es', 'trace-to-file', traceToFile],
       if (debuggingOptions.endlessTraceBuffer) ...<String>['--ez', 'endless-trace-buffer', 'true'],
-      if (debuggingOptions.dumpSkpOnShaderCompilation) ...<String>[
-        '--ez',
-        'dump-skp-on-shader-compilation',
-        'true',
-      ],
-      if (debuggingOptions.cacheSkSL) ...<String>['--ez', 'cache-sksl', 'true'],
       if (debuggingOptions.purgePersistentCache) ...<String>[
         '--ez',
         'purge-persistent-cache',
@@ -690,7 +683,11 @@ class AndroidDevice extends Device {
           'disable-service-auth-codes',
           'true',
         ],
-        if (dartVmFlags.isNotEmpty) ...<String>['--es', 'dart-flags', dartVmFlags],
+        if (debuggingOptions.dartFlags.isNotEmpty) ...<String>[
+          '--es',
+          'dart-flags',
+          debuggingOptions.dartFlags,
+        ],
         if (debuggingOptions.useTestFonts) ...<String>['--ez', 'use-test-fonts', 'true'],
         if (debuggingOptions.verboseSystemLogs) ...<String>['--ez', 'verbose-logging', 'true'],
         if (userIdentifier != null) ...<String>['--user', userIdentifier],
@@ -846,7 +843,7 @@ class AndroidDevice extends Device {
     multiLine: true,
   );
 
-  /// Return the most recent timestamp in the Android log or [null] if there is
+  /// Return the most recent timestamp in the Android log or `null` if there is
   /// no available timestamp. The format can be passed to logcat's -T option.
   @visibleForTesting
   Future<String?> lastLogcatTimestamp() async {

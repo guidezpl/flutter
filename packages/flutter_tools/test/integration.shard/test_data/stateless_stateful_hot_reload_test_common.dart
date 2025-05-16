@@ -5,6 +5,7 @@
 import 'dart:async';
 
 import 'package:file/file.dart';
+import 'package:flutter_tools/src/web/web_device.dart' show GoogleChromeDevice;
 
 import '../../src/common.dart';
 import '../test_data/stateless_stateful_project.dart';
@@ -13,11 +14,7 @@ import '../test_utils.dart';
 
 // This test verifies that we can hot reload a stateless widget into a
 // stateful one and back.
-void testAll({
-  bool chrome = false,
-  List<String> additionalCommandArgs = const <String>[],
-  Object? skip = false,
-}) {
+void testAll({bool chrome = false, List<String> additionalCommandArgs = const <String>[]}) {
   group('chrome: $chrome'
       '${additionalCommandArgs.isEmpty ? '' : ' with args: $additionalCommandArgs'}', () {
     late Directory tempDir;
@@ -42,7 +39,14 @@ void testAll({
           completer.complete();
         }
       });
-      await flutter.run(chrome: chrome, additionalCommandArgs: additionalCommandArgs);
+      if (chrome) {
+        await flutter.run(
+          device: GoogleChromeDevice.kChromeDeviceId,
+          additionalCommandArgs: additionalCommandArgs,
+        );
+      } else {
+        await flutter.run(additionalCommandArgs: additionalCommandArgs);
+      }
       // Wait for run to finish.
       await completer.future;
       await subscription.cancel();
@@ -60,5 +64,5 @@ void testAll({
       expect(logs, contains('STATEFUL'));
       await subscription.cancel();
     });
-  }, skip: skip);
+  });
 }

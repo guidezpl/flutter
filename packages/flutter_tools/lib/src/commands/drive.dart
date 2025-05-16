@@ -17,6 +17,7 @@ import '../base/io.dart';
 import '../base/logger.dart';
 import '../base/platform.dart';
 import '../base/signals.dart';
+import '../base/terminal.dart';
 import '../base/utils.dart';
 import '../build_info.dart';
 import '../dart/package_map.dart';
@@ -60,11 +61,15 @@ class DriveCommand extends RunCommandBase {
     required FileSystem fileSystem,
     required Logger logger,
     required Platform platform,
+    required Terminal terminal,
+    required OutputPreferences outputPreferences,
     required this.signals,
   }) : _flutterDriverFactory = flutterDriverFactory,
        _fileSystem = fileSystem,
        _logger = logger,
        _platform = platform,
+       _terminal = terminal,
+       _outputPreferences = outputPreferences,
        _fsUtils = FileSystemUtils(fileSystem: fileSystem, platform: platform),
        super(verboseHelp: verboseHelp) {
     requiresPubspecYaml();
@@ -76,20 +81,20 @@ class DriveCommand extends RunCommandBase {
     addPublishPort(enabledByDefault: false, verboseHelp: verboseHelp);
     argParser
       ..addFlag(
-        'keep-app-running',
+        _kKeepAppRunning,
         help:
             'Will keep the Flutter application running when done testing.\n'
             'By default, "flutter drive" stops the application after tests are finished, '
-            'and "--keep-app-running" overrides this. On the other hand, if "--use-existing-app" '
+            'and "--$_kKeepAppRunning" overrides this. On the other hand, if "--use-existing-app" '
             'is specified, then "flutter drive" instead defaults to leaving the application '
-            'running, and "--no-keep-app-running" overrides it.',
+            'running, and "--no-$_kKeepAppRunning" overrides it.',
       )
       ..addOption(
-        'use-existing-app',
+        _kUseExistingApp,
         help:
             'Connect to an already running instance via the given Dart VM Service URL. '
             'If this option is given, the application will not be automatically started, '
-            'and it will only be stopped if "--no-keep-app-running" is explicitly set.',
+            'and it will only be stopped if "--no-$_kKeepAppRunning" is explicitly set.',
         valueHelp: 'url',
       )
       ..addOption(
@@ -154,12 +159,6 @@ class DriveCommand extends RunCommandBase {
             'Location of the Chrome binary. '
             'Works only if "browser-name" is set to "chrome".',
       )
-      ..addOption(
-        'write-sksl-on-exit',
-        help:
-            'Attempts to write an SkSL file when the drive process is finished '
-            'to the provided file, overwriting it if necessary.',
-      )
       ..addMultiOption(
         'test-arguments',
         help:
@@ -186,6 +185,9 @@ class DriveCommand extends RunCommandBase {
       );
   }
 
+  static const String _kKeepAppRunning = 'keep-app-running';
+  static const String _kUseExistingApp = 'use-existing-app';
+
   final Signals signals;
 
   /// The [ProcessSignal]s that will lead to a screenshot being taken (if the option is provided).
@@ -206,6 +208,8 @@ class DriveCommand extends RunCommandBase {
   final FileSystem _fileSystem;
   final Logger _logger;
   final Platform _platform;
+  final Terminal _terminal;
+  final OutputPreferences _outputPreferences;
   final FileSystemUtils _fsUtils;
   Timer? timeoutTimer;
   Map<ProcessSignal, Object>? screenshotTokens;
@@ -304,6 +308,8 @@ class DriveCommand extends RunCommandBase {
       applicationPackageFactory: ApplicationPackageFactory.instance!,
       logger: _logger,
       platform: _platform,
+      terminal: _terminal,
+      outputPreferences: _outputPreferences,
       processUtils: globals.processUtils,
       dartSdkPath: globals.artifacts!.getArtifactPath(Artifact.engineDartBinary),
       devtoolsLauncher: DevtoolsLauncher.instance!,
@@ -323,7 +329,7 @@ class DriveCommand extends RunCommandBase {
 
     bool screenshotTaken = false;
     try {
-      if (stringArg('use-existing-app') == null) {
+      if (stringArg(_kUseExistingApp) == null) {
         await driverService.start(
           buildInfo,
           device,
@@ -338,9 +344,9 @@ class DriveCommand extends RunCommandBase {
           },
         );
       } else {
-        final Uri? uri = Uri.tryParse(stringArg('use-existing-app')!);
+        final Uri? uri = Uri.tryParse(stringArg(_kUseExistingApp)!);
         if (uri == null) {
-          throwToolExit('Invalid VM Service URI: ${stringArg('use-existing-app')}');
+          throwToolExit('Invalid VM Service URI: ${stringArg(_kUseExistingApp)}');
         }
         await driverService.reuseApplication(uri, device, debuggingOptions);
       }
@@ -378,14 +384,10 @@ class DriveCommand extends RunCommandBase {
         screenshotTaken = true;
       }
 
-      if (boolArg('keep-app-running')) {
+      if (_keepAppRunningWhenComplete) {
         _logger.printStatus('Leaving the application running.');
       } else {
-        final File? skslFile =
-            stringArg('write-sksl-on-exit') != null
-                ? _fileSystem.file(stringArg('write-sksl-on-exit'))
-                : null;
-        await driverService.stop(userIdentifier: userIdentifier, writeSkslOnExit: skslFile);
+        await driverService.stop(userIdentifier: userIdentifier);
       }
       if (testResult != 0) {
         throwToolExit(null);
@@ -400,6 +402,23 @@ class DriveCommand extends RunCommandBase {
     }
 
     return FlutterCommandResult.success();
+  }
+
+  /// Whether, based on the arguments passed, the app should be stopped upon
+  /// completion.
+  ///
+  /// Interprets the results of `--keep-app-running` and `--use-existing-app`.
+  bool get _keepAppRunningWhenComplete {
+    if (boolArg(_kKeepAppRunning)) {
+      // --keep-app-running
+      return true;
+    } else if (argResults!.wasParsed(_kKeepAppRunning)) {
+      // --no-keep-app-running
+      return false;
+    } else {
+      // Default --keep-app-running to whether --use-existing-app was used.
+      return argResults!.wasParsed(_kUseExistingApp);
+    }
   }
 
   int? get _timeoutSeconds {

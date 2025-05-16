@@ -2830,7 +2830,7 @@ abstract class MultiSelectableSelectionContainerDelegate extends SelectionContai
     bool foundStart = false;
     bool forwardSelection = currentSelectionEndIndex >= currentSelectionStartIndex;
     if (currentSelectionEndIndex == currentSelectionStartIndex) {
-      // Determining selection direction is innacurate if currentSelectionStartIndex == currentSelectionEndIndex.
+      // Determining selection direction is inaccurate if currentSelectionStartIndex == currentSelectionEndIndex.
       // Use the range from the selectable within the selection as the source of truth for selection direction.
       final SelectedContentRange rangeAtSelectableInSelection =
           selectables[currentSelectionStartIndex].getSelection()!;
@@ -3027,7 +3027,7 @@ abstract class MultiSelectableSelectionContainerDelegate extends SelectionContai
       if (event.forward) {
         currentSelectionStartIndex = currentSelectionEndIndex = 0;
       } else {
-        currentSelectionStartIndex = currentSelectionEndIndex = selectables.length;
+        currentSelectionStartIndex = currentSelectionEndIndex = selectables.length - 1;
       }
     }
     int targetIndex = event.isEnd ? currentSelectionEndIndex : currentSelectionStartIndex;

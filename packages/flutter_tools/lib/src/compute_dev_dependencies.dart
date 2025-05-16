@@ -10,7 +10,7 @@ import 'project.dart';
 /// Returns dependencies of [project] that are _only_ used as `dev_dependency`.
 ///
 /// That is, computes and returns a subset of dependencies, where the original
-/// set is based on packages listed as [`dev_dependency`][dev_deps] in the
+/// set is based on packages listed as a `dev_dependency` in the
 /// `pubspec.yaml` file, and removing packages from that set that appear as
 /// dependencies (implicitly non-dev) in any non-dev package depended on.
 Future<Set<String>> computeExclusiveDevDependencies(
@@ -18,7 +18,13 @@ Future<Set<String>> computeExclusiveDevDependencies(
   required Logger logger,
   required FlutterProject project,
 }) async {
-  final Map<String, Object?> jsonResult = await pub.deps(project);
+  final Map<String, Object?>? jsonResult = await pub.deps(project);
+
+  // Avoid crashing if dart pub deps is not ready.
+  // See https://github.com/flutter/flutter/issues/166648.
+  if (jsonResult == null) {
+    return <String>{};
+  }
 
   Never fail([String? reason]) {
     logger.printTrace(const JsonEncoder.withIndent('  ').convert(jsonResult));

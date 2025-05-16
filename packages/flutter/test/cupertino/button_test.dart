@@ -48,6 +48,17 @@ void main() {
     );
   });
 
+  testWidgets('Minimum size minimumSize parameter', (WidgetTester tester) async {
+    const Size size = Size(60.0, 100.0);
+    await tester.pumpWidget(
+      boilerplate(
+        child: const CupertinoButton(onPressed: null, minimumSize: size, child: SizedBox.shrink()),
+      ),
+    );
+    final RenderBox buttonBox = tester.renderObject(find.byType(CupertinoButton));
+    expect(buttonBox.size, size);
+  });
+
   testWidgets('Size grows with text', (WidgetTester tester) async {
     await tester.pumpWidget(
       boilerplate(
@@ -584,6 +595,33 @@ void main() {
                 .decoration
             as BoxDecoration;
     expect(decoration.color, isSameColorAs(CupertinoColors.systemBlue.darkColor));
+
+    await tester.pumpWidget(
+      CupertinoApp(
+        home: CupertinoButton.filled(
+          color: CupertinoColors.systemRed,
+          onPressed: () {},
+          child: Builder(
+            builder: (BuildContext context) {
+              textStyle = DefaultTextStyle.of(context).style;
+              return const Placeholder();
+            },
+          ),
+        ),
+      ),
+    );
+
+    decoration =
+        tester
+                .widget<DecoratedBox>(
+                  find.descendant(
+                    of: find.byType(CupertinoButton),
+                    matching: find.byType(DecoratedBox),
+                  ),
+                )
+                .decoration
+            as BoxDecoration;
+    expect(decoration.color, isSameColorAs(CupertinoColors.systemRed));
   });
 
   testWidgets("All CupertinoButton const maps keys' match the available style sizes", (
@@ -847,8 +885,169 @@ void main() {
     await tester.pump();
     expect(value, isTrue);
   });
+
+  testWidgets('Press and move on button and animation works', (WidgetTester tester) async {
+    await tester.pumpWidget(
+      boilerplate(child: CupertinoButton(onPressed: () {}, child: const Text('Tap me'))),
+    );
+    final TestGesture gesture = await tester.startGesture(
+      tester.getTopLeft(find.byType(CupertinoButton)),
+    );
+    addTearDown(gesture.removePointer);
+    // Check opacity.
+    final FadeTransition opacity = tester.widget(
+      find.descendant(of: find.byType(CupertinoButton), matching: find.byType(FadeTransition)),
+    );
+    await tester.pumpAndSettle();
+    expect(opacity.opacity.value, 0.4);
+    final double moveDistance = CupertinoButton.tapMoveSlop();
+    await gesture.moveBy(Offset(0, -moveDistance + 1));
+    await tester.pumpAndSettle();
+    expect(opacity.opacity.value, 0.4);
+    await gesture.moveBy(const Offset(0, -2));
+    await tester.pumpAndSettle();
+    expect(opacity.opacity.value, 1.0);
+    await gesture.moveBy(const Offset(0, 1));
+    await tester.pumpAndSettle();
+    expect(opacity.opacity.value, 0.4);
+  }, variant: TargetPlatformVariant.all());
+
+  testWidgets('Drag outside button within ListView does not leave the button pressed', (
+    WidgetTester tester,
+  ) async {
+    await tester.pumpWidget(
+      boilerplate(
+        child: ListView(
+          children: <Widget>[CupertinoButton(onPressed: () {}, child: const Text('Tap me'))],
+        ),
+      ),
+    );
+    final FadeTransition opacity = tester.widget(
+      find.descendant(of: find.byType(CupertinoButton), matching: find.byType(FadeTransition)),
+    );
+
+    final TestGesture gesture = await tester.createGesture();
+    addTearDown(gesture.removePointer);
+
+    await gesture.down(tester.getTopLeft(find.byType(CupertinoButton)));
+    await gesture.moveBy(const Offset(1, 1));
+    await gesture.moveBy(Offset(0, -CupertinoButton.tapMoveSlop() - 5));
+    await tester.pumpAndSettle();
+    expect(opacity.opacity.value, 1.0);
+  });
+
+  testWidgets('onPressed trigger takes into account MoveSlop.', (WidgetTester tester) async {
+    bool value = false;
+    await tester.pumpWidget(
+      boilerplate(
+        child: CupertinoButton(
+          onPressed: () {
+            value = true;
+          },
+          child: const Text('Tap me'),
+        ),
+      ),
+    );
+    TestGesture gesture = await tester.startGesture(tester.getCenter(find.byType(CupertinoButton)));
+    await gesture.moveTo(
+      tester.getBottomRight(find.byType(CupertinoButton)) +
+          Offset(0, CupertinoButton.tapMoveSlop()),
+    );
+    await gesture.up();
+    expect(value, isFalse);
+
+    gesture = await tester.startGesture(tester.getTopLeft(find.byType(CupertinoButton)));
+    await gesture.moveTo(
+      tester.getBottomRight(find.byType(CupertinoButton)) +
+          Offset(0, CupertinoButton.tapMoveSlop()),
+    );
+    await gesture.moveBy(const Offset(0, -1));
+    await gesture.up();
+    expect(value, isTrue);
+  });
+
+  testWidgets('Mouse cursor resolves in enabled/disabled/pressed/focused states', (
+    WidgetTester tester,
+  ) async {
+    final FocusNode focusNode = FocusNode(debugLabel: 'Button');
+    tester.binding.focusManager.highlightStrategy = FocusHighlightStrategy.alwaysTraditional;
+    addTearDown(focusNode.dispose);
+    Widget buildButton({required bool enabled, MouseCursor? cursor}) {
+      return CupertinoApp(
+        home: Center(
+          child: CupertinoButton(
+            focusNode: focusNode,
+            onPressed: enabled ? () {} : null,
+            mouseCursor: cursor,
+            child: const Text('Tap Me'),
+          ),
+        ),
+      );
+    }
+
+    // Test default mouse cursor
+    final TestGesture gesture = await tester.createGesture(
+      kind: PointerDeviceKind.mouse,
+      pointer: 1,
+    );
+    addTearDown(gesture.removePointer);
+    await tester.pumpWidget(buildButton(enabled: true, cursor: const _ButtonMouseCursor()));
+    await gesture.addPointer(location: tester.getCenter(find.byType(CupertinoButton)));
+    await tester.pump();
+    await gesture.moveTo(tester.getCenter(find.byType(CupertinoButton)));
+    expect(
+      RendererBinding.instance.mouseTracker.debugDeviceActiveCursor(1),
+      SystemMouseCursors.basic,
+    );
+
+    // Test disabled state mouse cursor
+    await tester.pumpWidget(buildButton(enabled: false, cursor: const _ButtonMouseCursor()));
+    await gesture.moveTo(tester.getCenter(find.byType(CupertinoButton)));
+    expect(
+      RendererBinding.instance.mouseTracker.debugDeviceActiveCursor(1),
+      SystemMouseCursors.forbidden,
+    );
+
+    // Test focused state mouse cursor
+    await tester.pumpWidget(buildButton(enabled: true, cursor: const _ButtonMouseCursor()));
+    focusNode.requestFocus();
+    await tester.pump();
+    expect(
+      RendererBinding.instance.mouseTracker.debugDeviceActiveCursor(1),
+      SystemMouseCursors.copy,
+    );
+    focusNode.unfocus();
+
+    // Test pressed state mouse cursor
+    await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await gesture.down(tester.getCenter(find.byType(CupertinoButton)));
+    await tester.pump();
+    expect(
+      RendererBinding.instance.mouseTracker.debugDeviceActiveCursor(1),
+      SystemMouseCursors.grab,
+    );
+    await gesture.up();
+    await gesture.removePointer();
+  });
 }
 
 Widget boilerplate({required Widget child}) {
   return Directionality(textDirection: TextDirection.ltr, child: Center(child: child));
+}
+
+class _ButtonMouseCursor extends WidgetStateMouseCursor {
+  const _ButtonMouseCursor();
+
+  @override
+  MouseCursor resolve(Set<WidgetState> states) {
+    return const WidgetStateProperty<MouseCursor>.fromMap(<WidgetStatesConstraint, MouseCursor>{
+      WidgetState.disabled: SystemMouseCursors.forbidden,
+      WidgetState.pressed: SystemMouseCursors.grab,
+      WidgetState.focused: SystemMouseCursors.copy,
+      WidgetState.any: SystemMouseCursors.basic,
+    }).resolve(states);
+  }
+
+  @override
+  String get debugDescription => '_ButtonMouseCursor()';
 }

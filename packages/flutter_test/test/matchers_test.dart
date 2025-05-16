@@ -13,6 +13,40 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:vector_math/vector_math_64.dart' show Matrix3;
 
+const SemanticsFlags allFlags = SemanticsFlags(
+  hasCheckedState: true,
+  isChecked: true,
+  isSelected: true,
+  isButton: true,
+  isTextField: true,
+  isFocused: true,
+  hasEnabledState: true,
+  isEnabled: true,
+  isInMutuallyExclusiveGroup: true,
+  isHeader: true,
+  isObscured: true,
+  scopesRoute: true,
+  namesRoute: true,
+  isHidden: true,
+  isImage: true,
+  isLiveRegion: true,
+  hasToggledState: true,
+  isToggled: true,
+  hasImplicitScrolling: true,
+  isMultiline: true,
+  isReadOnly: true,
+  isFocusable: true,
+  isLink: true,
+  isSlider: true,
+  isKeyboardKey: true,
+  isCheckStateMixed: true,
+  hasExpandedState: true,
+  isExpanded: true,
+  hasSelectedState: true,
+  hasRequiredState: true,
+  isRequired: true,
+);
+
 /// Class that makes it easy to mock common toStringDeep behavior.
 class _MockToStringDeep {
   _MockToStringDeep(String str) : _lines = <String>[] {
@@ -393,6 +427,17 @@ void main() {
     expect(const Color(0x00000000), isSameColorAs(const Color(0x00000002), threshold: 0.008));
   });
 
+  testWidgets('isSystemTextScaler', (WidgetTester tester) async {
+    addTearDown(tester.platformDispatcher.clearAllTestValues);
+    tester.platformDispatcher.textScaleFactorTestValue = 123;
+
+    final MediaQueryData mediaQueryData = MediaQueryData.fromView(tester.view);
+    final TextScaler systemScaler = mediaQueryData.textScaler;
+    expect(systemScaler, isSystemTextScaler());
+    expect(systemScaler, isSystemTextScaler(withScaleFactor: 123));
+    expect(systemScaler, isNot(isSystemTextScaler(withScaleFactor: 2)));
+  });
+
   group('coversSameAreaAs', () {
     test('empty Paths', () {
       expect(
@@ -684,16 +729,13 @@ void main() {
 
     testWidgets('Can match all semantics flags and actions', (WidgetTester tester) async {
       int actions = 0;
-      int flags = 0;
       const CustomSemanticsAction action = CustomSemanticsAction(label: 'test');
       for (final SemanticsAction action in SemanticsAction.values) {
         actions |= action.index;
       }
-      for (final SemanticsFlag flag in SemanticsFlag.values) {
-        flags |= flag.index;
-      }
+
       final SemanticsData data = SemanticsData(
-        flags: flags,
+        flagsCollection: allFlags,
         actions: actions,
         identifier: 'i',
         attributedLabel: AttributedString('a'),
@@ -719,6 +761,9 @@ void main() {
         headingLevel: 0,
         linkUrl: Uri(path: 'l'),
         role: ui.SemanticsRole.none,
+        controlsNodes: null,
+        validationResult: SemanticsValidationResult.none,
+        inputType: ui.SemanticsInputType.none,
       );
       final _FakeSemanticsNode node = _FakeSemanticsNode(data);
 
@@ -736,6 +781,7 @@ void main() {
           hasCheckedState: true,
           isChecked: true,
           isCheckStateMixed: true,
+          hasSelectedState: true,
           isSelected: true,
           isButton: true,
           isSlider: true,
@@ -761,6 +807,8 @@ void main() {
           hasImplicitScrolling: true,
           hasExpandedState: true,
           isExpanded: true,
+          hasRequiredState: true,
+          isRequired: true,
           /* Actions */
           hasTapAction: true,
           hasLongPressAction: true,
@@ -983,16 +1031,13 @@ void main() {
 
     testWidgets('can match all semantics flags and actions enabled', (WidgetTester tester) async {
       int actions = 0;
-      int flags = 0;
       const CustomSemanticsAction action = CustomSemanticsAction(label: 'test');
       for (final SemanticsAction action in SemanticsAction.values) {
         actions |= action.index;
       }
-      for (final SemanticsFlag flag in SemanticsFlag.values) {
-        flags |= flag.index;
-      }
+
       final SemanticsData data = SemanticsData(
-        flags: flags,
+        flagsCollection: allFlags,
         actions: actions,
         identifier: 'i',
         attributedLabel: AttributedString('a'),
@@ -1018,6 +1063,9 @@ void main() {
         headingLevel: 0,
         linkUrl: Uri(path: 'l'),
         role: ui.SemanticsRole.none,
+        controlsNodes: null,
+        validationResult: SemanticsValidationResult.none,
+        inputType: ui.SemanticsInputType.none,
       );
       final _FakeSemanticsNode node = _FakeSemanticsNode(data);
 
@@ -1059,6 +1107,8 @@ void main() {
           hasImplicitScrolling: true,
           hasExpandedState: true,
           isExpanded: true,
+          hasRequiredState: true,
+          isRequired: true,
           /* Actions */
           hasTapAction: true,
           hasLongPressAction: true,
@@ -1089,7 +1139,7 @@ void main() {
 
     testWidgets('can match all flags and actions disabled', (WidgetTester tester) async {
       final SemanticsData data = SemanticsData(
-        flags: 0,
+        flagsCollection: SemanticsFlags.kNone,
         actions: 0,
         identifier: 'i',
         attributedLabel: AttributedString('a'),
@@ -1114,6 +1164,9 @@ void main() {
         headingLevel: 0,
         linkUrl: null,
         role: ui.SemanticsRole.none,
+        controlsNodes: null,
+        validationResult: SemanticsValidationResult.none,
+        inputType: ui.SemanticsInputType.none,
       );
       final _FakeSemanticsNode node = _FakeSemanticsNode(data);
 
@@ -1155,6 +1208,8 @@ void main() {
           hasImplicitScrolling: false,
           hasExpandedState: false,
           isExpanded: false,
+          hasRequiredState: false,
+          isRequired: false,
           /* Actions */
           hasTapAction: false,
           hasLongPressAction: false,
@@ -1184,15 +1239,13 @@ void main() {
 
     testWidgets('only matches given flags and actions', (WidgetTester tester) async {
       int allActions = 0;
-      int allFlags = 0;
+
       for (final SemanticsAction action in SemanticsAction.values) {
         allActions |= action.index;
       }
-      for (final SemanticsFlag flag in SemanticsFlag.values) {
-        allFlags |= flag.index;
-      }
+
       final SemanticsData emptyData = SemanticsData(
-        flags: 0,
+        flagsCollection: SemanticsFlags.kNone,
         actions: 0,
         identifier: 'i',
         attributedLabel: AttributedString('a'),
@@ -1217,12 +1270,15 @@ void main() {
         headingLevel: 0,
         linkUrl: null,
         role: ui.SemanticsRole.none,
+        controlsNodes: null,
+        validationResult: SemanticsValidationResult.none,
+        inputType: ui.SemanticsInputType.none,
       );
       final _FakeSemanticsNode emptyNode = _FakeSemanticsNode(emptyData);
 
       const CustomSemanticsAction action = CustomSemanticsAction(label: 'test');
       final SemanticsData fullData = SemanticsData(
-        flags: allFlags,
+        flagsCollection: allFlags,
         actions: allActions,
         identifier: 'i',
         attributedLabel: AttributedString('a'),
@@ -1248,6 +1304,9 @@ void main() {
         headingLevel: 0,
         linkUrl: Uri(path: 'l'),
         role: ui.SemanticsRole.none,
+        controlsNodes: null,
+        validationResult: SemanticsValidationResult.none,
+        inputType: ui.SemanticsInputType.none,
       );
       final _FakeSemanticsNode fullNode = _FakeSemanticsNode(fullData);
 
@@ -1309,7 +1368,7 @@ void main() {
     testWidgets('can match only custom actions', (WidgetTester tester) async {
       const CustomSemanticsAction action = CustomSemanticsAction(label: 'test');
       final SemanticsData data = SemanticsData(
-        flags: 0,
+        flagsCollection: SemanticsFlags.kNone,
         actions: SemanticsAction.customAction.index,
         identifier: 'i',
         attributedLabel: AttributedString('a'),
@@ -1335,6 +1394,9 @@ void main() {
         headingLevel: 0,
         linkUrl: null,
         role: ui.SemanticsRole.none,
+        controlsNodes: null,
+        validationResult: SemanticsValidationResult.none,
+        inputType: ui.SemanticsInputType.none,
       );
       final _FakeSemanticsNode node = _FakeSemanticsNode(data);
 

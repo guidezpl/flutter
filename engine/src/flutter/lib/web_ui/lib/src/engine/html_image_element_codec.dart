@@ -39,9 +39,7 @@ abstract class HtmlImageElementCodec implements ui.Codec {
     // builders to create UI.
     chunkCallback?.call(0, 100);
     imgElement = createDomHTMLImageElement();
-    if (renderer is! HtmlRenderer) {
-      imgElement!.crossOrigin = 'anonymous';
-    }
+    imgElement!.crossOrigin = 'anonymous';
     imgElement!
       ..decoding = 'async'
       ..src = src;
@@ -74,7 +72,7 @@ abstract class HtmlImageElementCodec implements ui.Codec {
       naturalWidth = kDefaultImageSizeFallback;
       naturalHeight = kDefaultImageSizeFallback;
     }
-    final ui.Image image = createImageFromHTMLImageElement(
+    final ui.Image image = await createImageFromHTMLImageElement(
       imgElement!,
       naturalWidth,
       naturalHeight,
@@ -83,7 +81,7 @@ abstract class HtmlImageElementCodec implements ui.Codec {
   }
 
   /// Creates a [ui.Image] from an [HTMLImageElement] that has been loaded.
-  ui.Image createImageFromHTMLImageElement(
+  FutureOr<ui.Image> createImageFromHTMLImageElement(
     DomHTMLImageElement image,
     int naturalWidth,
     int naturalHeight,

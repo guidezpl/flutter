@@ -629,7 +629,6 @@ class UpdatePackagesCommand extends FlutterCommand {
       status.stop();
       // The exception is rethrown, so don't catch only Exceptions.
     } catch (exception) {
-      // ignore: avoid_catches_without_on_clauses
       status.cancel();
       rethrow;
     }
@@ -1476,8 +1475,8 @@ class PubspecDependency extends PubspecLine {
   /// This generates the entry for this dependency for the pubspec.yaml for the
   /// fake package that we'll use to get the version numbers figured out.
   ///
-  /// When called with [allowUpgrade] as [true], the version constrains will be set
-  /// to >= whatever the previous version was. If [allowUpgrade] is [false], then
+  /// When called with [allowUpgrade] as `true`, the version constrains will be set
+  /// to >= whatever the previous version was. If [allowUpgrade] is `false`, then
   /// the previous version is used again as an exact pin.
   void describeForFakePubspec(
     StringBuffer dependencies,
