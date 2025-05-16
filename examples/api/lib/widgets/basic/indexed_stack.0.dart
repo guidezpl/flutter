@@ -2,37 +2,34 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flutter code sample for [IndexedStack.].
-
 import 'package:flutter/material.dart';
 
-void main() => runApp(const MyApp());
+/// Flutter code sample for [IndexedStack].
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+void main() => runApp(const IndexedStackApp());
 
-  static const String _title = 'Flutter Code Sample';
+class IndexedStackApp extends StatelessWidget {
+  const IndexedStackApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: _title,
       home: Scaffold(
-        appBar: AppBar(title: const Text(_title)),
-        body: const MyStatefulWidget(),
+        appBar: AppBar(title: const Text('IndexedStack Sample')),
+        body: const IndexedStackExample(),
       ),
     );
   }
 }
 
-class MyStatefulWidget extends StatefulWidget {
-  const MyStatefulWidget({super.key});
+class IndexedStackExample extends StatefulWidget {
+  const IndexedStackExample({super.key});
 
   @override
-  State<MyStatefulWidget> createState() => _MyStatefulWidgetState();
+  State<IndexedStackExample> createState() => _IndexedStackExampleState();
 }
 
-class _MyStatefulWidgetState extends State<MyStatefulWidget> {
+class _IndexedStackExampleState extends State<IndexedStackExample> {
   List<String> names = <String>['Dash', 'John', 'Mary'];
   int index = 0;
   final TextEditingController fieldText = TextEditingController();
@@ -65,11 +62,7 @@ class _MyStatefulWidgetState extends State<MyStatefulWidget> {
             GestureDetector(
               onTap: () {
                 setState(() {
-                  if (index == 0) {
-                    index = names.length - 1;
-                  } else {
-                    index -= 1;
-                  }
+                  index = (index - 1) % names.length;
                 });
               },
               child: const Icon(Icons.chevron_left, key: Key('gesture1')),
@@ -79,26 +72,20 @@ class _MyStatefulWidgetState extends State<MyStatefulWidget> {
               children: <Widget>[
                 IndexedStack(
                   index: index,
-                  children: <Widget>[
-                    for (String name in names) PersonTracker(name: name)
-                  ],
-                )
+                  children: <Widget>[for (final String name in names) PersonTracker(name: name)],
+                ),
               ],
             ),
             GestureDetector(
               onTap: () {
                 setState(() {
-                  if (index == names.length - 1) {
-                    index = 0;
-                  } else {
-                    index += 1;
-                  }
+                  index = (index + 1) % names.length;
                 });
               },
               child: const Icon(Icons.chevron_right, key: Key('gesture2')),
             ),
           ],
-        )
+        ),
       ],
     );
   }
@@ -136,7 +123,7 @@ class _PersonTrackerState extends State<PersonTracker> {
               });
             },
             label: const Text('Increment'),
-          )
+          ),
         ],
       ),
     );

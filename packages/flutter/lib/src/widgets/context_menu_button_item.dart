@@ -2,6 +2,12 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+/// @docImport 'package:flutter/material.dart';
+/// @docImport 'package:flutter/services.dart';
+///
+/// @docImport 'text_selection.dart';
+library;
+
 import 'framework.dart';
 
 /// The buttons that can appear in a context menu by default.
@@ -26,6 +32,22 @@ enum ContextMenuButtonType {
   /// A button that deletes the current text selection.
   delete,
 
+  /// A button that looks up the current text selection.
+  lookUp,
+
+  /// A button that launches a web search for the current text selection.
+  searchWeb,
+
+  /// A button that displays the share screen for the current text selection.
+  share,
+
+  /// A button for starting Live Text input.
+  ///
+  /// See also:
+  ///  * [LiveText], where the availability of Live Text input can be obtained.
+  ///  * [LiveTextInputStatusNotifier], where the status of Live Text can be listened to.
+  liveTextInput,
+
   /// Anything other than the default button types.
   custom,
 }
@@ -37,6 +59,8 @@ enum ContextMenuButtonType {
 ///  * [AdaptiveTextSelectionToolbar], which can take a list of
 ///    ContextMenuButtonItems and create a platform-specific context menu with
 ///    the indicated buttons.
+///  * [IOSSystemContextMenuItem], which serves a similar role but for
+///    system-drawn context menu items on iOS.
 @immutable
 class ContextMenuButtonItem {
   /// Creates a const instance of [ContextMenuButtonItem].
@@ -47,7 +71,7 @@ class ContextMenuButtonItem {
   });
 
   /// The callback to be called when the button is pressed.
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
 
   /// The type of button this represents.
   final ContextMenuButtonType type;
@@ -78,10 +102,10 @@ class ContextMenuButtonItem {
     if (other.runtimeType != runtimeType) {
       return false;
     }
-    return other is ContextMenuButtonItem
-        && other.label == label
-        && other.onPressed == onPressed
-        && other.type == type;
+    return other is ContextMenuButtonItem &&
+        other.label == label &&
+        other.onPressed == onPressed &&
+        other.type == type;
   }
 
   @override

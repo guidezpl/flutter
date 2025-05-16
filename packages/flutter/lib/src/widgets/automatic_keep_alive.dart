@@ -2,6 +2,9 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+/// @docImport 'scroll_view.dart';
+library;
+
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
@@ -23,13 +26,34 @@ import 'sliver.dart';
 /// [KeepAliveNotification.handle].
 ///
 /// To send these notifications, consider using [AutomaticKeepAliveClientMixin].
+///
+/// {@tool dartpad}
+/// This sample demonstrates how to use the [AutomaticKeepAlive] widget in
+/// combination with the [AutomaticKeepAliveClientMixin] to selectively preserve
+/// the state of individual items in a scrollable list.
+///
+/// Normally, widgets in a lazily built list like [ListView.builder] are
+/// disposed of when they leave the visible area to save resources. This means
+/// that any state inside a [StatefulWidget] would be lost unless explicitly
+/// preserved.
+///
+/// In this example, each list item is a [StatefulWidget] that includes a
+/// counter and an increment button. To preserve the state of selected items
+/// (based on their index), the [AutomaticKeepAlive] widget and
+/// [AutomaticKeepAliveClientMixin] are used:
+///
+/// - The `wantKeepAlive` getter in the item’s state class returns true for
+///   even-indexed items, indicating that their state should be preserved.
+/// - For odd-indexed items, `wantKeepAlive` returns false, so their state is
+///   not preserved when scrolled out of view.
+///
+/// ** See code in examples/api/lib/widgets/keep_alive/automatic_keep_alive.0.dart **
+/// {@end-tool}
+///
 class AutomaticKeepAlive extends StatefulWidget {
   /// Creates a widget that listens to [KeepAliveNotification]s and maintains a
   /// [KeepAlive] widget appropriately.
-  const AutomaticKeepAlive({
-    super.key,
-    required this.child,
-  });
+  const AutomaticKeepAlive({super.key, required this.child});
 
   /// The widget below this widget in the tree.
   ///
@@ -99,7 +123,7 @@ class _AutomaticKeepAliveState extends State<AutomaticKeepAlive> {
           final ParentDataElement<KeepAliveParentDataMixin>? childElement = _getChildElement();
           assert(childElement != null);
           _updateParentDataOfChild(childElement!);
-        });
+        }, debugLabel: 'AutomaticKeepAlive.updateParentData');
       }
     }
     return false;
@@ -144,7 +168,8 @@ class _AutomaticKeepAliveState extends State<AutomaticKeepAlive> {
   }
 
   VoidCallback _createCallback(Listenable handle) {
-    return () {
+    late final VoidCallback callback;
+    return callback = () {
       assert(() {
         if (!mounted) {
           throw FlutterError(
@@ -157,11 +182,15 @@ class _AutomaticKeepAliveState extends State<AutomaticKeepAlive> {
         return true;
       }());
       _handles!.remove(handle);
+      handle.removeListener(callback);
       if (_handles!.isEmpty) {
-        if (SchedulerBinding.instance.schedulerPhase.index < SchedulerPhase.persistentCallbacks.index) {
+        if (SchedulerBinding.instance.schedulerPhase.index <
+            SchedulerPhase.persistentCallbacks.index) {
           // Build/layout haven't started yet so let's just schedule this for
           // the next frame.
-          setState(() { _keepingAlive = false; });
+          setState(() {
+            _keepingAlive = false;
+          });
         } else {
           // We were probably notified by a descendant when they were yanked out
           // of our subtree somehow. We're probably in the middle of build or
@@ -231,25 +260,26 @@ class _AutomaticKeepAliveState extends State<AutomaticKeepAlive> {
 
   @override
   Widget build(BuildContext context) {
-    return KeepAlive(
-      keepAlive: _keepingAlive,
-      child: _child,
-    );
+    return KeepAlive(keepAlive: _keepingAlive, child: _child);
   }
-
 
   @override
   void debugFillProperties(DiagnosticPropertiesBuilder description) {
     super.debugFillProperties(description);
-    description.add(FlagProperty('_keepingAlive', value: _keepingAlive, ifTrue: 'keeping subtree alive'));
-    description.add(DiagnosticsProperty<Map<Listenable, VoidCallback>>(
-      'handles',
-      _handles,
-      description: _handles != null ?
-        '${_handles!.length} active client${ _handles!.length == 1 ? "" : "s" }' :
-        null,
-      ifNull: 'no notifications ever received',
-    ));
+    description.add(
+      FlagProperty('_keepingAlive', value: _keepingAlive, ifTrue: 'keeping subtree alive'),
+    );
+    description.add(
+      DiagnosticsProperty<Map<Listenable, VoidCallback>>(
+        'handles',
+        _handles,
+        description:
+            _handles != null
+                ? '${_handles!.length} active client${_handles!.length == 1 ? "" : "s"}'
+                : null,
+        ifNull: 'no notifications ever received',
+      ),
+    );
   }
 }
 
@@ -292,8 +322,6 @@ class _AutomaticKeepAliveState extends State<AutomaticKeepAlive> {
 /// [KeepAliveNotification] internally.
 class KeepAliveNotification extends Notification {
   /// Creates a notification to indicate that a subtree must be kept alive.
-  ///
-  /// The [handle] must not be null.
   const KeepAliveNotification(this.handle);
 
   /// A [Listenable] that will inform its clients when the widget that fired the
@@ -319,19 +347,6 @@ class KeepAliveNotification extends Notification {
 /// consider using [AutomaticKeepAliveClientMixin], which uses a
 /// [KeepAliveHandle] internally.
 class KeepAliveHandle extends ChangeNotifier {
-  /// Trigger the listeners to indicate that the widget
-  /// no longer needs to be kept alive.
-  ///
-  /// This method does not call [dispose]. When the handle is not needed
-  /// anymore, it must be [dispose]d regardless of whether notifying listeners.
-  @Deprecated(
-    'Use dispose instead. '
-    'This feature was deprecated after v3.3.0-0.0.pre.',
-  )
-  void release() {
-    notifyListeners();
-  }
-
   @override
   void dispose() {
     notifyListeners();
@@ -351,6 +366,13 @@ class KeepAliveHandle extends ChangeNotifier {
 /// The type argument `T` is the type of the [StatefulWidget] subclass of the
 /// [State] into which this class is being mixed.
 ///
+/// {@tool dartpad}
+/// This example demonstrates how to use the [AutomaticKeepAliveClientMixin]
+/// to keep the state of a widget alive even when it is scrolled out of view.
+///
+/// ** See code in examples/api/lib/widgets/keep_alive/automatic_keep_alive_client_mixin.0.dart **
+/// {@end-tool}
+///
 /// See also:
 ///
 ///  * [AutomaticKeepAlive], which listens to messages from this mixin.
@@ -366,7 +388,6 @@ mixin AutomaticKeepAliveClientMixin<T extends StatefulWidget> on State<T> {
   }
 
   void _releaseKeepAlive() {
-    // Dispose and release do not imply each other.
     _keepAliveHandle!.dispose();
     _keepAliveHandle = null;
   }
@@ -414,6 +435,10 @@ mixin AutomaticKeepAliveClientMixin<T extends StatefulWidget> on State<T> {
   Widget build(BuildContext context) {
     if (wantKeepAlive && _keepAliveHandle == null) {
       _ensureKeepAlive();
+      // Whenever wantKeepAlive's value changes (or might change), the
+      // subclass should call [updateKeepAlive].
+      // That will ensure that the keepalive is disabled (or enabled)
+      // without requiring a rebuild.
     }
     return const _NullWidget();
   }

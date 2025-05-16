@@ -11,12 +11,11 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import '../rendering/mock_canvas.dart';
+import '../widgets/feedback_tester.dart';
 import '../widgets/semantics_tester.dart';
-import 'feedback_tester.dart';
 
 class TestIcon extends StatefulWidget {
-  const TestIcon({ super.key });
+  const TestIcon({super.key});
 
   @override
   TestIconState createState() => TestIconState();
@@ -33,7 +32,7 @@ class TestIconState extends State<TestIcon> {
 }
 
 class TestText extends StatefulWidget {
-  const TestText(this.text, { super.key });
+  const TestText(this.text, {super.key});
 
   final String text;
 
@@ -61,22 +60,27 @@ void main() {
 
     const double leftPadding = 10.0;
     const double rightPadding = 20.0;
-    Widget buildFrame({ bool dense = false, bool isTwoLine = false, bool isThreeLine = false, double textScaleFactor = 1.0, double? subtitleScaleFactor }) {
+    Widget buildFrame({
+      bool dense = false,
+      bool isTwoLine = false,
+      bool isThreeLine = false,
+      TextScaler textScaler = TextScaler.noScaling,
+      TextScaler? subtitleScaler,
+    }) {
       hasSubtitle = isTwoLine || isThreeLine;
-      subtitleScaleFactor ??= textScaleFactor;
+      subtitleScaler ??= textScaler;
       return MaterialApp(
-        theme: ThemeData(useMaterial3: true),
         home: MediaQuery(
           data: MediaQueryData(
             padding: const EdgeInsets.only(left: leftPadding, right: rightPadding),
-            textScaleFactor: textScaleFactor,
+            textScaler: textScaler,
           ),
           child: Material(
             child: Center(
               child: ListTile(
                 leading: SizedBox(key: leadingKey, width: 24.0, height: 24.0),
                 title: const Text('title'),
-                subtitle: hasSubtitle ? Text('subtitle', textScaleFactor: subtitleScaleFactor) : null,
+                subtitle: hasSubtitle ? Text('subtitle', textScaler: subtitleScaler) : null,
                 trailing: SizedBox(key: trailingKey, width: 24.0, height: 24.0),
                 dense: dense,
                 isThreeLine: isThreeLine,
@@ -148,55 +152,54 @@ void main() {
     testHorizontalGeometry();
     testVerticalGeometry(88.0);
 
-    await tester.pumpWidget(buildFrame(textScaleFactor: 4.0));
+    await tester.pumpWidget(buildFrame(textScaler: const TextScaler.linear(4.0)));
     testChildren();
     testHorizontalGeometry();
     testVerticalGeometry(112.0);
 
-    await tester.pumpWidget(buildFrame(isTwoLine: true, textScaleFactor: 4.0));
+    await tester.pumpWidget(buildFrame(isTwoLine: true, textScaler: const TextScaler.linear(4.0)));
     testChildren();
     testHorizontalGeometry();
-    // TODO(tahatesser): https://github.com/flutter/flutter/issues/99933
-    //                A bug in the HTML renderer and/or Chrome 96+ causes a
-    //                discrepancy in the paragraph height.
-    const bool hasIssue99933 = kIsWeb && !bool.fromEnvironment('FLUTTER_WEB_USE_SKIA');
-    testVerticalGeometry(hasIssue99933 ? 193 : 192.0);
+    testVerticalGeometry(192.0);
 
     // Make sure that the height of a large subtitle is taken into account.
-    await tester.pumpWidget(buildFrame(isTwoLine: true, textScaleFactor: 0.5, subtitleScaleFactor: 4.0));
+    await tester.pumpWidget(
+      buildFrame(
+        isTwoLine: true,
+        textScaler: const TextScaler.linear(0.5),
+        subtitleScaler: const TextScaler.linear(4.0),
+      ),
+    );
     testChildren();
     testHorizontalGeometry();
-    testVerticalGeometry(hasIssue99933 ? 109 : 108.0);
+    testVerticalGeometry(108.0);
 
-    await tester.pumpWidget(buildFrame(isThreeLine: true, textScaleFactor: 4.0));
+    await tester.pumpWidget(
+      buildFrame(isThreeLine: true, textScaler: const TextScaler.linear(4.0)),
+    );
     testChildren();
     testHorizontalGeometry();
-    testVerticalGeometry(hasIssue99933 ? 193 : 192.0);
+    testVerticalGeometry(192.0);
   });
 
   testWidgets('ListTile geometry (RTL)', (WidgetTester tester) async {
     const double leftPadding = 10.0;
     const double rightPadding = 20.0;
-    await tester.pumpWidget(MaterialApp(
-      theme: ThemeData(useMaterial3: true),
-      home: const MediaQuery(
-        data: MediaQueryData(
-          padding: EdgeInsets.only(left: leftPadding, right: rightPadding),
-        ),
-        child: Directionality(
-          textDirection: TextDirection.rtl,
-          child: Material(
-            child: Center(
-              child: ListTile(
-                leading: Text('L'),
-                title: Text('title'),
-                trailing: Text('T'),
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: MediaQuery(
+          data: MediaQueryData(padding: EdgeInsets.only(left: leftPadding, right: rightPadding)),
+          child: Directionality(
+            textDirection: TextDirection.rtl,
+            child: Material(
+              child: Center(
+                child: ListTile(leading: Text('L'), title: Text('title'), trailing: Text('T')),
               ),
             ),
           ),
         ),
       ),
-    ));
+    );
 
     double left(String text) => tester.getTopLeft(find.text(text)).dx;
     double right(String text) => tester.getTopRight(find.text(text)).dx;
@@ -211,22 +214,25 @@ void main() {
   });
 
   testWidgets('ListTile.divideTiles', (WidgetTester tester) async {
-    final List<String> titles = <String>[ 'first', 'second', 'third' ];
+    final List<String> titles = <String>['first', 'second', 'third'];
 
-    await tester.pumpWidget(MaterialApp(
-      home: Material(
-        child: Builder(
-          builder: (BuildContext context) {
-            return ListView(
-              children: ListTile.divideTiles(
-                context: context,
-                tiles: titles.map<Widget>((String title) => ListTile(title: Text(title))),
-              ).toList(),
-            );
-          },
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Material(
+          child: Builder(
+            builder: (BuildContext context) {
+              return ListView(
+                children:
+                    ListTile.divideTiles(
+                      context: context,
+                      tiles: titles.map<Widget>((String title) => ListTile(title: Text(title))),
+                    ).toList(),
+              );
+            },
+          ),
         ),
       ),
-    ));
+    );
 
     expect(find.text('first'), findsOneWidget);
     expect(find.text('second'), findsOneWidget);
@@ -239,7 +245,10 @@ void main() {
   });
 
   testWidgets('ListTile.divideTiles with single item list', (WidgetTester tester) async {
-    final Iterable<Widget> output = ListTile.divideTiles(tiles: const <Widget>[SizedBox()], color: Colors.grey);
+    final Iterable<Widget> output = ListTile.divideTiles(
+      tiles: const <Widget>[SizedBox()],
+      color: Colors.grey,
+    );
     expect(output.single, isA<SizedBox>());
   });
 
@@ -252,7 +261,8 @@ void main() {
       yield const Text('');
     }
 
-    final List<Widget> output = ListTile.divideTiles(tiles: generator(), color: Colors.grey).toList();
+    final List<Widget> output =
+        ListTile.divideTiles(tiles: generator(), color: Colors.grey).toList();
     expect(output, hasLength(2));
     expect(callCount, 1);
   });
@@ -268,21 +278,10 @@ void main() {
             data: const MediaQueryData(),
             child: Column(
               children: <Widget>[
-                const ListTile(
-                  title: Text('one'),
-                ),
-                ListTile(
-                  title: const Text('two'),
-                  onTap: () {},
-                ),
-                const ListTile(
-                  title: Text('three'),
-                  selected: true,
-                ),
-                const ListTile(
-                  title: Text('four'),
-                  enabled: false,
-                ),
+                const ListTile(title: Text('one')),
+                ListTile(title: const Text('two'), onTap: () {}),
+                const ListTile(title: Text('three'), selected: true),
+                const ListTile(title: Text('four'), enabled: false),
               ],
             ),
           ),
@@ -299,30 +298,32 @@ void main() {
               flags: <SemanticsFlag>[
                 SemanticsFlag.hasEnabledState,
                 SemanticsFlag.isEnabled,
+                SemanticsFlag.hasSelectedState,
               ],
               label: 'one',
             ),
             TestSemantics.rootChild(
               flags: <SemanticsFlag>[
+                SemanticsFlag.isButton,
                 SemanticsFlag.hasEnabledState,
                 SemanticsFlag.isEnabled,
                 SemanticsFlag.isFocusable,
+                SemanticsFlag.hasSelectedState,
               ],
-              actions: <SemanticsAction>[SemanticsAction.tap],
+              actions: <SemanticsAction>[SemanticsAction.tap, SemanticsAction.focus],
               label: 'two',
             ),
             TestSemantics.rootChild(
               flags: <SemanticsFlag>[
-                SemanticsFlag.isSelected,
                 SemanticsFlag.hasEnabledState,
                 SemanticsFlag.isEnabled,
+                SemanticsFlag.hasSelectedState,
+                SemanticsFlag.isSelected,
               ],
               label: 'three',
             ),
             TestSemantics.rootChild(
-              flags: <SemanticsFlag>[
-                SemanticsFlag.hasEnabledState,
-              ],
+              flags: <SemanticsFlag>[SemanticsFlag.hasEnabledState, SemanticsFlag.hasSelectedState],
               label: 'four',
             ),
           ],
@@ -383,7 +384,6 @@ void main() {
 
     Widget buildFrame(double leadingWidth, TextDirection textDirection) {
       return MaterialApp(
-        theme: ThemeData(useMaterial3: true),
         home: Directionality(
           textDirection: textDirection,
           child: Material(
@@ -451,7 +451,6 @@ void main() {
     // "ONE"-LINE
     await tester.pumpWidget(
       MaterialApp(
-        theme: ThemeData(useMaterial3: true),
         home: Material(
           child: ListView(
             children: const <Widget>[
@@ -470,20 +469,39 @@ void main() {
         ),
       ),
     );
-    await tester.pump(const Duration(seconds: 2)); // the text styles are animated when we change dense
+    await tester.pump(
+      const Duration(seconds: 2),
+    ); // the text styles are animated when we change dense
     //                                                                          LEFT                 TOP                   WIDTH  HEIGHT
 
-    expect(tester.getRect(find.byType(ListTile).at(0)),     const Rect.fromLTWH(                0.0,           0.0, 800.0, 328.0));
-    expect(tester.getRect(find.byType(CircleAvatar).at(0)), const Rect.fromLTWH(               16.0,         144.0,  40.0,  40.0));
-    expect(tester.getRect(find.byType(Placeholder).at(0)),  const Rect.fromLTWH(800.0 - 24.0 - 24.0,         152.0,  24.0,  24.0));
-    expect(tester.getRect(find.byType(ListTile).at(1)),     const Rect.fromLTWH(                0.0,  328.0       , 800.0,  56.0));
-    expect(tester.getRect(find.byType(CircleAvatar).at(1)), const Rect.fromLTWH(               16.0,  328.0 +  8.0,  40.0,  40.0));
-    expect(tester.getRect(find.byType(Placeholder).at(1)),  const Rect.fromLTWH(800.0 - 24.0 - 24.0,  328.0 + 16.0,  24.0,  24.0));
+    expect(
+      tester.getRect(find.byType(ListTile).at(0)),
+      const Rect.fromLTWH(0.0, 0.0, 800.0, 328.0),
+    );
+    expect(
+      tester.getRect(find.byType(CircleAvatar).at(0)),
+      const Rect.fromLTWH(16.0, 144.0, 40.0, 40.0),
+    );
+    expect(
+      tester.getRect(find.byType(Placeholder).at(0)),
+      const Rect.fromLTWH(800.0 - 24.0 - 24.0, 152.0, 24.0, 24.0),
+    );
+    expect(
+      tester.getRect(find.byType(ListTile).at(1)),
+      const Rect.fromLTWH(0.0, 328.0, 800.0, 56.0),
+    );
+    expect(
+      tester.getRect(find.byType(CircleAvatar).at(1)),
+      const Rect.fromLTWH(16.0, 328.0 + 8.0, 40.0, 40.0),
+    );
+    expect(
+      tester.getRect(find.byType(Placeholder).at(1)),
+      const Rect.fromLTWH(800.0 - 24.0 - 24.0, 328.0 + 16.0, 24.0, 24.0),
+    );
 
     // "TWO"-LINE
     await tester.pumpWidget(
       MaterialApp(
-        theme: ThemeData(useMaterial3: true),
         home: Material(
           child: ListView(
             children: const <Widget>[
@@ -504,25 +522,39 @@ void main() {
         ),
       ),
     );
-    // TODO(tahatesser): https://github.com/flutter/flutter/issues/99933
-    //                A bug in the HTML renderer and/or Chrome 96+ causes a
-    //                discrepancy in the paragraph height.
-    const bool hasIssue99933 = kIsWeb && !bool.fromEnvironment('FLUTTER_WEB_USE_SKIA');
-    const double height = hasIssue99933 ? 301.0 : 300;
-    const double avatarTop = hasIssue99933 ? 130.5 : 130.0;
-    const double placeholderTop = hasIssue99933 ? 138.5 : 138.0;
+
+    const double height = 300;
+    const double avatarTop = 130.0;
+    const double placeholderTop = 138.0;
     //                                                                          LEFT                 TOP          WIDTH  HEIGHT
-    expect(tester.getRect(find.byType(ListTile).at(0)),     const Rect.fromLTWH(                0.0,            0.0, 800.0, height));
-    expect(tester.getRect(find.byType(CircleAvatar).at(0)), const Rect.fromLTWH(               16.0,      avatarTop,  40.0,  40.0));
-    expect(tester.getRect(find.byType(Placeholder).at(0)),  const Rect.fromLTWH(800.0 - 24.0 - 24.0, placeholderTop,  24.0,  24.0));
-    expect(tester.getRect(find.byType(ListTile).at(1)),     const Rect.fromLTWH(                0.0,  height       , 800.0,  72.0));
-    expect(tester.getRect(find.byType(CircleAvatar).at(1)), const Rect.fromLTWH(               16.0,  height + 16.0,  40.0,  40.0));
-    expect(tester.getRect(find.byType(Placeholder).at(1)),  const Rect.fromLTWH(800.0 - 24.0 - 24.0,  height + 24.0,  24.0,  24.0));
+    expect(
+      tester.getRect(find.byType(ListTile).at(0)),
+      const Rect.fromLTWH(0.0, 0.0, 800.0, height),
+    );
+    expect(
+      tester.getRect(find.byType(CircleAvatar).at(0)),
+      const Rect.fromLTWH(16.0, avatarTop, 40.0, 40.0),
+    );
+    expect(
+      tester.getRect(find.byType(Placeholder).at(0)),
+      const Rect.fromLTWH(800.0 - 24.0 - 24.0, placeholderTop, 24.0, 24.0),
+    );
+    expect(
+      tester.getRect(find.byType(ListTile).at(1)),
+      const Rect.fromLTWH(0.0, height, 800.0, 72.0),
+    );
+    expect(
+      tester.getRect(find.byType(CircleAvatar).at(1)),
+      const Rect.fromLTWH(16.0, height + 16.0, 40.0, 40.0),
+    );
+    expect(
+      tester.getRect(find.byType(Placeholder).at(1)),
+      const Rect.fromLTWH(800.0 - 24.0 - 24.0, height + 24.0, 24.0, 24.0),
+    );
 
     // THREE-LINE
     await tester.pumpWidget(
       MaterialApp(
-        theme: ThemeData(useMaterial3: true),
         home: Material(
           child: ListView(
             children: const <Widget>[
@@ -546,17 +578,34 @@ void main() {
       ),
     );
     //                                                                          LEFT                 TOP          WIDTH  HEIGHT
-    expect(tester.getRect(find.byType(ListTile).at(0)),     const Rect.fromLTWH(                0.0,          0.0, 800.0, height));
-    expect(tester.getRect(find.byType(CircleAvatar).at(0)), const Rect.fromLTWH(               16.0,          8.0,  40.0,  40.0));
-    expect(tester.getRect(find.byType(Placeholder).at(0)),  const Rect.fromLTWH(800.0 - 24.0 - 24.0,          8.0,  24.0,  24.0));
-    expect(tester.getRect(find.byType(ListTile).at(1)),     const Rect.fromLTWH(                0.0, height      , 800.0,  88.0));
-    expect(tester.getRect(find.byType(CircleAvatar).at(1)), const Rect.fromLTWH(               16.0, height + 8.0,  40.0,  40.0));
-    expect(tester.getRect(find.byType(Placeholder).at(1)),  const Rect.fromLTWH(800.0 - 24.0 - 24.0, height + 8.0,  24.0,  24.0));
+    expect(
+      tester.getRect(find.byType(ListTile).at(0)),
+      const Rect.fromLTWH(0.0, 0.0, 800.0, height),
+    );
+    expect(
+      tester.getRect(find.byType(CircleAvatar).at(0)),
+      const Rect.fromLTWH(16.0, 8.0, 40.0, 40.0),
+    );
+    expect(
+      tester.getRect(find.byType(Placeholder).at(0)),
+      const Rect.fromLTWH(800.0 - 24.0 - 24.0, 8.0, 24.0, 24.0),
+    );
+    expect(
+      tester.getRect(find.byType(ListTile).at(1)),
+      const Rect.fromLTWH(0.0, height, 800.0, 88.0),
+    );
+    expect(
+      tester.getRect(find.byType(CircleAvatar).at(1)),
+      const Rect.fromLTWH(16.0, height + 8.0, 40.0, 40.0),
+    );
+    expect(
+      tester.getRect(find.byType(Placeholder).at(1)),
+      const Rect.fromLTWH(800.0 - 24.0 - 24.0, height + 8.0, 24.0, 24.0),
+    );
 
     // "ONE-LINE" with Small Leading Widget
     await tester.pumpWidget(
       MaterialApp(
-        theme: ThemeData(useMaterial3: true),
         home: Material(
           child: ListView(
             children: const <Widget>[
@@ -575,74 +624,91 @@ void main() {
         ),
       ),
     );
-    await tester.pump(const Duration(seconds: 2)); // the text styles are animated when we change dense
+    await tester.pump(
+      const Duration(seconds: 2),
+    ); // the text styles are animated when we change dense
     //                                                                          LEFT                 TOP           WIDTH  HEIGHT
-    expect(tester.getRect(find.byType(ListTile).at(0)),     const Rect.fromLTWH(                0.0,          0.0, 800.0, 328.0));
-    expect(tester.getRect(find.byType(Placeholder).at(0)),  const Rect.fromLTWH(               16.0,        158.0,  24.0,  12.0));
-    expect(tester.getRect(find.byType(Placeholder).at(1)),  const Rect.fromLTWH(800.0 - 24.0 - 24.0,        152.0,  24.0,  24.0));
-    expect(tester.getRect(find.byType(ListTile).at(1)),     const Rect.fromLTWH(                0.0, 328.0       , 800.0,  56.0));
-    expect(tester.getRect(find.byType(Placeholder).at(2)),  const Rect.fromLTWH(               16.0, 328.0 + 22.0,  24.0,  12.0));
-    expect(tester.getRect(find.byType(Placeholder).at(3)),  const Rect.fromLTWH(800.0 - 24.0 - 24.0, 328.0 + 16.0,  24.0,  24.0));
+    expect(
+      tester.getRect(find.byType(ListTile).at(0)),
+      const Rect.fromLTWH(0.0, 0.0, 800.0, 328.0),
+    );
+    expect(
+      tester.getRect(find.byType(Placeholder).at(0)),
+      const Rect.fromLTWH(16.0, 158.0, 24.0, 12.0),
+    );
+    expect(
+      tester.getRect(find.byType(Placeholder).at(1)),
+      const Rect.fromLTWH(800.0 - 24.0 - 24.0, 152.0, 24.0, 24.0),
+    );
+    expect(
+      tester.getRect(find.byType(ListTile).at(1)),
+      const Rect.fromLTWH(0.0, 328.0, 800.0, 56.0),
+    );
+    expect(
+      tester.getRect(find.byType(Placeholder).at(2)),
+      const Rect.fromLTWH(16.0, 328.0 + 22.0, 24.0, 12.0),
+    );
+    expect(
+      tester.getRect(find.byType(Placeholder).at(3)),
+      const Rect.fromLTWH(800.0 - 24.0 - 24.0, 328.0 + 16.0, 24.0, 24.0),
+    );
   });
 
-  testWidgets('ListTile leading icon height does not exceed ListTile height', (WidgetTester tester) async {
+  testWidgets('ListTile leading icon height does not exceed ListTile height', (
+    WidgetTester tester,
+  ) async {
     // regression test for https://github.com/flutter/flutter/issues/28765
     const SizedBox oversizedWidget = SizedBox(height: 80.0, width: 24.0, child: Placeholder());
 
     // One line
     await tester.pumpWidget(
       MaterialApp(
-        theme: ThemeData(useMaterial3: true),
         home: Material(
           child: ListView(
             children: const <Widget>[
-              ListTile(
-                leading: oversizedWidget,
-                title: Text('A'),
-              ),
-              ListTile(
-                leading: oversizedWidget,
-                title: Text('B'),
-              ),
+              ListTile(leading: oversizedWidget, title: Text('A')),
+              ListTile(leading: oversizedWidget, title: Text('B')),
             ],
           ),
         ),
       ),
     );
 
-    expect(tester.getRect(find.byType(Placeholder).at(0)), const Rect.fromLTWH(16.0,  0.0, 24.0, 56.0));
-    expect(tester.getRect(find.byType(Placeholder).at(1)), const Rect.fromLTWH(16.0, 56.0, 24.0, 56.0));
+    expect(
+      tester.getRect(find.byType(Placeholder).at(0)),
+      const Rect.fromLTWH(16.0, 0.0, 24.0, 56.0),
+    );
+    expect(
+      tester.getRect(find.byType(Placeholder).at(1)),
+      const Rect.fromLTWH(16.0, 56.0, 24.0, 56.0),
+    );
 
     // Two line
     await tester.pumpWidget(
       MaterialApp(
-        theme: ThemeData(useMaterial3: true),
         home: Material(
           child: ListView(
             children: const <Widget>[
-              ListTile(
-                leading: oversizedWidget,
-                title: Text('A'),
-                subtitle: Text('A'),
-              ),
-              ListTile(
-                leading: oversizedWidget,
-                title: Text('B'),
-                subtitle: Text('B'),
-              ),
+              ListTile(leading: oversizedWidget, title: Text('A'), subtitle: Text('A')),
+              ListTile(leading: oversizedWidget, title: Text('B'), subtitle: Text('B')),
             ],
           ),
         ),
       ),
     );
 
-    expect(tester.getRect(find.byType(Placeholder).at(0)), const Rect.fromLTWH(16.0,        8.0, 24.0, 56.0));
-    expect(tester.getRect(find.byType(Placeholder).at(1)), const Rect.fromLTWH(16.0, 72.0 + 8.0, 24.0, 56.0));
+    expect(
+      tester.getRect(find.byType(Placeholder).at(0)),
+      const Rect.fromLTWH(16.0, 8.0, 24.0, 56.0),
+    );
+    expect(
+      tester.getRect(find.byType(Placeholder).at(1)),
+      const Rect.fromLTWH(16.0, 72.0 + 8.0, 24.0, 56.0),
+    );
 
     // Three line
     await tester.pumpWidget(
       MaterialApp(
-        theme: ThemeData(useMaterial3: true),
         home: Material(
           child: ListView(
             children: const <Widget>[
@@ -650,13 +716,13 @@ void main() {
                 leading: oversizedWidget,
                 title: Text('A'),
                 subtitle: Text('A'),
-                isThreeLine:  true,
+                isThreeLine: true,
               ),
               ListTile(
                 leading: oversizedWidget,
                 title: Text('B'),
                 subtitle: Text('B'),
-                isThreeLine:  true,
+                isThreeLine: true,
               ),
             ],
           ),
@@ -664,44 +730,48 @@ void main() {
       ),
     );
 
-    expect(tester.getRect(find.byType(Placeholder).at(0)), const Rect.fromLTWH(16.0,        8.0, 24.0, 56.0));
-    expect(tester.getRect(find.byType(Placeholder).at(1)), const Rect.fromLTWH(16.0, 88.0 + 8.0, 24.0, 56.0));
+    expect(
+      tester.getRect(find.byType(Placeholder).at(0)),
+      const Rect.fromLTWH(16.0, 8.0, 24.0, 56.0),
+    );
+    expect(
+      tester.getRect(find.byType(Placeholder).at(1)),
+      const Rect.fromLTWH(16.0, 88.0 + 8.0, 24.0, 56.0),
+    );
   });
 
-  testWidgets('ListTile trailing icon height does not exceed ListTile height', (WidgetTester tester) async {
+  testWidgets('ListTile trailing icon height does not exceed ListTile height', (
+    WidgetTester tester,
+  ) async {
     // regression test for https://github.com/flutter/flutter/issues/28765
     const SizedBox oversizedWidget = SizedBox(height: 80.0, width: 24.0, child: Placeholder());
 
     // One line
     await tester.pumpWidget(
       MaterialApp(
-        theme: ThemeData(useMaterial3: true),
         home: Material(
           child: ListView(
             children: const <Widget>[
-              ListTile(
-                trailing: oversizedWidget,
-                title: Text('A'),
-                dense: false,
-              ),
-              ListTile(
-                trailing: oversizedWidget,
-                title: Text('B'),
-                dense: false,
-              ),
+              ListTile(trailing: oversizedWidget, title: Text('A'), dense: false),
+              ListTile(trailing: oversizedWidget, title: Text('B'), dense: false),
             ],
           ),
         ),
       ),
     );
 
-    expect(tester.getRect(find.byType(Placeholder).at(0)), const Rect.fromLTWH(800.0 - 24.0 - 24.0,  0.0, 24.0, 56.0));
-    expect(tester.getRect(find.byType(Placeholder).at(1)), const Rect.fromLTWH(800.0 - 24.0 - 24.0, 56.0, 24.0, 56.0));
+    expect(
+      tester.getRect(find.byType(Placeholder).at(0)),
+      const Rect.fromLTWH(800.0 - 24.0 - 24.0, 0.0, 24.0, 56.0),
+    );
+    expect(
+      tester.getRect(find.byType(Placeholder).at(1)),
+      const Rect.fromLTWH(800.0 - 24.0 - 24.0, 56.0, 24.0, 56.0),
+    );
 
     // Two line
     await tester.pumpWidget(
       MaterialApp(
-        theme: ThemeData(useMaterial3: true),
         home: Material(
           child: ListView(
             children: const <Widget>[
@@ -723,13 +793,18 @@ void main() {
       ),
     );
 
-    expect(tester.getRect(find.byType(Placeholder).at(0)), const Rect.fromLTWH(800.0 - 24.0 - 24.0,        8.0, 24.0, 56.0));
-    expect(tester.getRect(find.byType(Placeholder).at(1)), const Rect.fromLTWH(800.0 - 24.0 - 24.0, 72.0 + 8.0, 24.0, 56.0));
+    expect(
+      tester.getRect(find.byType(Placeholder).at(0)),
+      const Rect.fromLTWH(800.0 - 24.0 - 24.0, 8.0, 24.0, 56.0),
+    );
+    expect(
+      tester.getRect(find.byType(Placeholder).at(1)),
+      const Rect.fromLTWH(800.0 - 24.0 - 24.0, 72.0 + 8.0, 24.0, 56.0),
+    );
 
     // Three line
     await tester.pumpWidget(
       MaterialApp(
-        theme: ThemeData(useMaterial3: true),
         home: Material(
           child: ListView(
             children: const <Widget>[
@@ -737,14 +812,14 @@ void main() {
                 trailing: oversizedWidget,
                 title: Text('A'),
                 subtitle: Text('A'),
-                isThreeLine:  true,
+                isThreeLine: true,
                 dense: false,
               ),
               ListTile(
                 trailing: oversizedWidget,
                 title: Text('B'),
                 subtitle: Text('B'),
-                isThreeLine:  true,
+                isThreeLine: true,
                 dense: false,
               ),
             ],
@@ -753,8 +828,14 @@ void main() {
       ),
     );
 
-    expect(tester.getRect(find.byType(Placeholder).at(0)), const Rect.fromLTWH(800.0 - 24.0 - 24.0,        8.0, 24.0, 56.0));
-    expect(tester.getRect(find.byType(Placeholder).at(1)), const Rect.fromLTWH(800.0 - 24.0 - 24.0, 88.0 + 8.0, 24.0, 56.0));
+    expect(
+      tester.getRect(find.byType(Placeholder).at(0)),
+      const Rect.fromLTWH(800.0 - 24.0 - 24.0, 8.0, 24.0, 56.0),
+    );
+    expect(
+      tester.getRect(find.byType(Placeholder).at(1)),
+      const Rect.fromLTWH(800.0 - 24.0 - 24.0, 88.0 + 8.0, 24.0, 56.0),
+    );
   });
 
   testWidgets('ListTile only accepts focus when enabled', (WidgetTester tester) async {
@@ -765,11 +846,7 @@ void main() {
         home: Material(
           child: ListView(
             children: <Widget>[
-              ListTile(
-                title: Text('A', key: childKey),
-                dense: true,
-                onTap: () {},
-              ),
+              ListTile(title: Text('A', key: childKey), dense: true, onTap: () {}),
             ],
           ),
         ),
@@ -788,12 +865,7 @@ void main() {
         home: Material(
           child: ListView(
             children: <Widget>[
-              ListTile(
-                title: Text('A', key: childKey),
-                dense: true,
-                enabled: false,
-                onTap: () {},
-              ),
+              ListTile(title: Text('A', key: childKey), dense: true, enabled: false, onTap: () {}),
             ],
           ),
         ),
@@ -812,12 +884,7 @@ void main() {
         home: Material(
           child: ListView(
             children: <Widget>[
-              ListTile(
-                title: Text('A', key: childKey),
-                dense: true,
-                autofocus: true,
-                onTap: () {},
-              ),
+              ListTile(title: Text('A', key: childKey), dense: true, autofocus: true, onTap: () {}),
             ],
           ),
         ),
@@ -856,23 +923,26 @@ void main() {
       return MaterialApp(
         home: Material(
           child: Center(
-            child: StatefulBuilder(builder: (BuildContext context, StateSetter setState) {
-              return Container(
-                width: 100,
-                height: 100,
-                color: Colors.white,
-                child: ListTile(
-                  onTap: enabled ? () {} : null,
-                  focusColor: Colors.orange[500],
-                  autofocus: true,
-                  focusNode: focusNode,
-                ),
-              );
-            }),
+            child: StatefulBuilder(
+              builder: (BuildContext context, StateSetter setState) {
+                return Container(
+                  width: 100,
+                  height: 100,
+                  color: Colors.white,
+                  child: ListTile(
+                    onTap: enabled ? () {} : null,
+                    focusColor: Colors.orange[500],
+                    autofocus: true,
+                    focusNode: focusNode,
+                  ),
+                );
+              },
+            ),
           ),
         ),
       );
     }
+
     await tester.pumpWidget(buildApp());
 
     await tester.pumpAndSettle();
@@ -881,14 +951,11 @@ void main() {
       find.byType(Material),
       paints
         ..rect()
+        ..rect(color: Colors.orange[500], rect: const Rect.fromLTRB(350.0, 250.0, 450.0, 350.0))
         ..rect(
-            color: Colors.orange[500],
-            rect: const Rect.fromLTRB(350.0, 250.0, 450.0, 350.0),
-          )
-        ..rect(
-            color: const Color(0xffffffff),
-            rect: const Rect.fromLTRB(350.0, 250.0, 450.0, 350.0),
-          ),
+          color: const Color(0xffffffff),
+          rect: const Rect.fromLTRB(350.0, 250.0, 450.0, 350.0),
+        ),
     );
 
     // Check when the list tile is disabled.
@@ -900,10 +967,12 @@ void main() {
       paints
         ..rect()
         ..rect(
-            color: const Color(0xffffffff),
-            rect: const Rect.fromLTRB(350.0, 250.0, 450.0, 350.0),
-          ),
+          color: const Color(0xffffffff),
+          rect: const Rect.fromLTRB(350.0, 250.0, 450.0, 350.0),
+        ),
     );
+
+    focusNode.dispose();
   });
 
   testWidgets('ListTile can be hovered and has correct hover color', (WidgetTester tester) async {
@@ -912,22 +981,25 @@ void main() {
       return MaterialApp(
         home: Material(
           child: Center(
-            child: StatefulBuilder(builder: (BuildContext context, StateSetter setState) {
-              return Container(
-                width: 100,
-                height: 100,
-                color: Colors.white,
-                child: ListTile(
-                  onTap: enabled ? () {} : null,
-                  hoverColor: Colors.orange[500],
-                  autofocus: true,
-                ),
-              );
-            }),
+            child: StatefulBuilder(
+              builder: (BuildContext context, StateSetter setState) {
+                return Container(
+                  width: 100,
+                  height: 100,
+                  color: Colors.white,
+                  child: ListTile(
+                    onTap: enabled ? () {} : null,
+                    hoverColor: Colors.orange[500],
+                    autofocus: true,
+                  ),
+                );
+              },
+            ),
           ),
         ),
       );
     }
+
     await tester.pumpWidget(buildApp());
 
     await tester.pump();
@@ -937,13 +1009,13 @@ void main() {
       paints
         ..rect()
         ..rect(
-            color: const Color(0x1f000000),
-            rect: const Rect.fromLTRB(350.0, 250.0, 450.0, 350.0),
-          )
+          color: const Color(0x1f000000),
+          rect: const Rect.fromLTRB(350.0, 250.0, 450.0, 350.0),
+        )
         ..rect(
-            color: const Color(0xffffffff),
-            rect: const Rect.fromLTRB(350.0, 250.0, 450.0, 350.0),
-          ),
+          color: const Color(0xffffffff),
+          rect: const Rect.fromLTRB(350.0, 250.0, 450.0, 350.0),
+        ),
     );
 
     // Start hovering
@@ -958,17 +1030,14 @@ void main() {
       paints
         ..rect()
         ..rect(
-            color: const Color(0x1f000000),
-            rect: const Rect.fromLTRB(350.0, 250.0, 450.0, 350.0),
-          )
+          color: const Color(0x1f000000),
+          rect: const Rect.fromLTRB(350.0, 250.0, 450.0, 350.0),
+        )
+        ..rect(color: Colors.orange[500], rect: const Rect.fromLTRB(350.0, 250.0, 450.0, 350.0))
         ..rect(
-            color: Colors.orange[500],
-            rect: const Rect.fromLTRB(350.0, 250.0, 450.0, 350.0),
-          )
-        ..rect(
-            color: const Color(0xffffffff),
-            rect: const Rect.fromLTRB(350.0, 250.0, 450.0, 350.0),
-          ),
+          color: const Color(0xffffffff),
+          rect: const Rect.fromLTRB(350.0, 250.0, 450.0, 350.0),
+        ),
     );
 
     await tester.pumpWidget(buildApp(enabled: false));
@@ -979,27 +1048,25 @@ void main() {
       paints
         ..rect()
         ..rect(
-            color: Colors.orange[500]!.withAlpha(0),
-            rect: const Rect.fromLTRB(350.0, 250.0, 450.0, 350.0),
-          )
+          color: Colors.orange[500]!.withAlpha(0),
+          rect: const Rect.fromLTRB(350.0, 250.0, 450.0, 350.0),
+        )
         ..rect(
-            color: const Color(0xffffffff),
-            rect: const Rect.fromLTRB(350.0, 250.0, 450.0, 350.0),
-          ),
+          color: const Color(0xffffffff),
+          rect: const Rect.fromLTRB(350.0, 250.0, 450.0, 350.0),
+        ),
     );
   });
 
   testWidgets('ListTile can be splashed and has correct splash color', (WidgetTester tester) async {
     final Widget buildApp = MaterialApp(
+      theme: ThemeData(useMaterial3: false),
       home: Material(
         child: Center(
           child: SizedBox(
             width: 100,
             height: 100,
-            child: ListTile(
-              onTap: () {},
-              splashColor: const Color(0xff88ff88),
-            ),
+            child: ListTile(onTap: () {}, splashColor: const Color(0xff88ff88)),
           ),
         ),
       ),
@@ -1007,7 +1074,9 @@ void main() {
 
     await tester.pumpWidget(buildApp);
     await tester.pumpAndSettle();
-    final TestGesture gesture = await tester.startGesture(tester.getRect(find.byType(ListTile)).center);
+    final TestGesture gesture = await tester.startGesture(
+      tester.getRect(find.byType(ListTile)).center,
+    );
     await tester.pump(const Duration(milliseconds: 200));
     expect(find.byType(Material), paints..circle(x: 50, y: 50, color: const Color(0xff88ff88)));
     await gesture.up();
@@ -1021,23 +1090,28 @@ void main() {
       return MaterialApp(
         home: Material(
           child: Center(
-            child: StatefulBuilder(builder: (BuildContext context, StateSetter setState) {
-              return Container(
-                width: 200,
-                height: 100,
-                color: Colors.white,
-                child: ListTile(
-                  key: tileKey,
-                  onTap: enabled ? () {
-                    setState(() {
-                      tapped = true;
-                    });
-                  } : null,
-                  hoverColor: Colors.orange[500],
-                  autofocus: true,
-                ),
-              );
-            }),
+            child: StatefulBuilder(
+              builder: (BuildContext context, StateSetter setState) {
+                return Container(
+                  width: 200,
+                  height: 100,
+                  color: Colors.white,
+                  child: ListTile(
+                    key: tileKey,
+                    onTap:
+                        enabled
+                            ? () {
+                              setState(() {
+                                tapped = true;
+                              });
+                            }
+                            : null,
+                    hoverColor: Colors.orange[500],
+                    autofocus: true,
+                  ),
+                );
+              },
+            ),
           ),
         ),
       );
@@ -1097,11 +1171,7 @@ void main() {
 
     Widget buildListTile(ShapeBorder shape) {
       return MaterialApp(
-        home: Material(
-          child: Center(
-            child: ListTile(shape: shape, tileColor: tileColor),
-          ),
-        ),
+        home: Material(child: Center(child: ListTile(shape: shape, tileColor: tileColor))),
       );
     }
 
@@ -1110,10 +1180,7 @@ void main() {
     Rect rect = tester.getRect(find.byType(ListTile));
 
     // Check if a rounded rectangle was painted with the correct color and shape
-    expect(
-      find.byType(Material),
-      paints..rect(color: tileColor, rect: rect),
-    );
+    expect(find.byType(Material), paints..rect(color: tileColor, rect: rect));
 
     // Test stadium shape
     await tester.pumpWidget(buildListTile(stadiumShape));
@@ -1122,10 +1189,12 @@ void main() {
     // Check if a rounded rectangle was painted with the correct color and shape
     expect(
       find.byType(Material),
-      paints..clipRect()..rrect(
-        color: tileColor,
-        rrect: RRect.fromRectAndRadius(rect, Radius.circular(rect.shortestSide / 2.0)),
-      ),
+      paints
+        ..clipRect()
+        ..rrect(
+          color: tileColor,
+          rrect: RRect.fromRectAndRadius(rect, Radius.circular(rect.shortestSide / 2.0)),
+        ),
     );
   });
 
@@ -1137,40 +1206,41 @@ void main() {
           child: Center(
             child: MouseRegion(
               cursor: SystemMouseCursors.forbidden,
-              child: ListTile(
-                onTap: () {},
-                mouseCursor: SystemMouseCursors.text,
-              ),
+              child: ListTile(onTap: () {}, mouseCursor: SystemMouseCursors.text),
             ),
           ),
         ),
       ),
     );
 
-    final TestGesture gesture = await tester.createGesture(kind: PointerDeviceKind.mouse, pointer: 1);
+    final TestGesture gesture = await tester.createGesture(
+      kind: PointerDeviceKind.mouse,
+      pointer: 1,
+    );
     await gesture.addPointer(location: tester.getCenter(find.byType(ListTile)));
 
     await tester.pump();
 
-    expect(RendererBinding.instance.mouseTracker.debugDeviceActiveCursor(1), SystemMouseCursors.text);
+    expect(
+      RendererBinding.instance.mouseTracker.debugDeviceActiveCursor(1),
+      SystemMouseCursors.text,
+    );
 
     // Test default cursor
     await tester.pumpWidget(
       MaterialApp(
         home: Material(
           child: Center(
-            child: MouseRegion(
-              cursor: SystemMouseCursors.forbidden,
-              child: ListTile(
-                onTap: () {},
-              ),
-            ),
+            child: MouseRegion(cursor: SystemMouseCursors.forbidden, child: ListTile(onTap: () {})),
           ),
         ),
       ),
     );
 
-    expect(RendererBinding.instance.mouseTracker.debugDeviceActiveCursor(1), SystemMouseCursors.click);
+    expect(
+      RendererBinding.instance.mouseTracker.debugDeviceActiveCursor(1),
+      SystemMouseCursors.click,
+    );
 
     // Test default cursor when disabled
     await tester.pumpWidget(
@@ -1179,32 +1249,33 @@ void main() {
           child: Center(
             child: MouseRegion(
               cursor: SystemMouseCursors.forbidden,
-              child: ListTile(
-                enabled: false,
-              ),
+              child: ListTile(enabled: false),
             ),
           ),
         ),
       ),
     );
 
-    expect(RendererBinding.instance.mouseTracker.debugDeviceActiveCursor(1), SystemMouseCursors.basic);
+    expect(
+      RendererBinding.instance.mouseTracker.debugDeviceActiveCursor(1),
+      SystemMouseCursors.basic,
+    );
 
     // Test default cursor when onTap or onLongPress is null
     await tester.pumpWidget(
       const MaterialApp(
         home: Material(
           child: Center(
-            child: MouseRegion(
-              cursor: SystemMouseCursors.forbidden,
-              child: ListTile(),
-            ),
+            child: MouseRegion(cursor: SystemMouseCursors.forbidden, child: ListTile()),
           ),
         ),
       ),
     );
 
-    expect(RendererBinding.instance.mouseTracker.debugDeviceActiveCursor(1), SystemMouseCursors.basic);
+    expect(
+      RendererBinding.instance.mouseTracker.debugDeviceActiveCursor(1),
+      SystemMouseCursors.basic,
+    );
   });
 
   testWidgets('ListTile onFocusChange callback', (WidgetTester tester) async {
@@ -1233,6 +1304,8 @@ void main() {
     await tester.pump();
     expect(gotFocus, isFalse);
     expect(node.hasFocus, isFalse);
+
+    node.dispose();
   });
 
   testWidgets('ListTile respects tileColor & selectedTileColor', (WidgetTester tester) async {
@@ -1251,7 +1324,7 @@ void main() {
                   selectedTileColor: selectedTileColor,
                   tileColor: tileColor,
                   onTap: () {
-                    setState(()=> isSelected = !isSelected);
+                    setState(() => isSelected = !isSelected);
                   },
                   title: const Text('Title'),
                 );
@@ -1273,19 +1346,18 @@ void main() {
     expect(find.byType(Material), paints..rect(color: selectedTileColor));
   });
 
-  testWidgets('ListTile shows Material ripple effects on top of tileColor', (WidgetTester tester) async {
+  testWidgets('ListTile shows Material ripple effects on top of tileColor', (
+    WidgetTester tester,
+  ) async {
     // Regression test for https://github.com/flutter/flutter/issues/73616
     final Color tileColor = Colors.red.shade500;
 
     await tester.pumpWidget(
       MaterialApp(
+        theme: ThemeData(useMaterial3: false),
         home: Material(
           child: Center(
-            child: ListTile(
-              tileColor: tileColor,
-              onTap: () {},
-              title: const Text('Title'),
-            ),
+            child: ListTile(tileColor: tileColor, onTap: () {}, title: const Text('Title')),
           ),
         ),
       ),
@@ -1309,7 +1381,7 @@ void main() {
 
   testWidgets('ListTile default tile color', (WidgetTester tester) async {
     bool isSelected = false;
-    final ThemeData theme =  ThemeData(useMaterial3: true);
+    final ThemeData theme = ThemeData();
     const Color defaultColor = Colors.transparent;
 
     await tester.pumpWidget(
@@ -1322,7 +1394,7 @@ void main() {
                 return ListTile(
                   selected: isSelected,
                   onTap: () {
-                    setState(()=> isSelected = !isSelected);
+                    setState(() => isSelected = !isSelected);
                   },
                   title: const Text('Title'),
                 );
@@ -1342,10 +1414,12 @@ void main() {
     expect(find.byType(Material), paints..rect(color: defaultColor));
   });
 
-  testWidgets('Default tile color when ListTile is wrapped with an elevated widget', (WidgetTester tester) async {
+  testWidgets('Default tile color when ListTile is wrapped with an elevated widget', (
+    WidgetTester tester,
+  ) async {
     // This is a regression test for https://github.com/flutter/flutter/issues/117700
     bool isSelected = false;
-    final ThemeData theme =  ThemeData(useMaterial3: true);
+    final ThemeData theme = ThemeData();
     const Color defaultColor = Colors.transparent;
 
     await tester.pumpWidget(
@@ -1359,7 +1433,7 @@ void main() {
                 child: ListTile(
                   selected: isSelected,
                   onTap: () {
-                    setState(()=> isSelected = !isSelected);
+                    setState(() => isSelected = !isSelected);
                   },
                   title: const Text('Title'),
                 ),
@@ -1374,7 +1448,7 @@ void main() {
       find.byType(Material),
       paints
         ..path(color: const Color(0xff000000))
-        ..path(color: const Color(0xffece6f3))
+        ..path(color: const Color(0xfff7f2fa))
         ..save()
         ..save(),
     );
@@ -1388,7 +1462,7 @@ void main() {
       find.byType(Material),
       paints
         ..path(color: const Color(0xff000000))
-        ..path(color: const Color(0xffece6f3))
+        ..path(color: const Color(0xfff7f2fa))
         ..save()
         ..save(),
     );
@@ -1399,16 +1473,11 @@ void main() {
     // Regression test for https://github.com/flutter/flutter/issues/66636
     const Key key = Key('key');
 
-    await tester.pumpWidget(const MaterialApp(
-      home: Scaffold(
-        body: SizedBox.shrink(
-          child: ListTile(
-            key: key,
-            tileColor: Colors.green,
-          ),
-        ),
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(body: SizedBox.shrink(child: ListTile(key: key, tileColor: Colors.green))),
       ),
-    ));
+    );
 
     final RenderBox renderBox = tester.renderObject(find.byKey(key));
     expect(renderBox.size.width, equals(0.0));
@@ -1469,16 +1538,8 @@ void main() {
     });
 
     testWidgets('ListTile with enabled feedback by default', (WidgetTester tester) async {
-
       await tester.pumpWidget(
-        MaterialApp(
-          home: Material(
-            child: ListTile(
-              title: const Text('Title'),
-              onTap: () {},
-            ),
-          ),
-        ),
+        MaterialApp(home: Material(child: ListTile(title: const Text('Title'), onTap: () {}))),
       );
 
       await tester.tap(find.byType(ListTile));
@@ -1495,10 +1556,7 @@ void main() {
           home: Material(
             child: ListTileTheme(
               data: const ListTileThemeData(enableFeedback: enableFeedbackTheme),
-              child: ListTile(
-                title: const Text('Title'),
-                onTap: () {},
-              ),
+              child: ListTile(title: const Text('Title'), onTap: () {}),
             ),
           ),
         ),
@@ -1510,7 +1568,9 @@ void main() {
       expect(feedback.hapticCount, 0);
     });
 
-    testWidgets('ListTile.enableFeedback overrides ListTileTheme.enableFeedback', (WidgetTester tester) async {
+    testWidgets('ListTile.enableFeedback overrides ListTileTheme.enableFeedback', (
+      WidgetTester tester,
+    ) async {
       const bool enableFeedbackTheme = false;
       const bool enableFeedback = true;
 
@@ -1535,7 +1595,9 @@ void main() {
       expect(feedback.hapticCount, 0);
     });
 
-    testWidgets('ListTile.mouseCursor overrides ListTileTheme.mouseCursor', (WidgetTester tester) async {
+    testWidgets('ListTile.mouseCursor overrides ListTileTheme.mouseCursor', (
+      WidgetTester tester,
+    ) async {
       final Key tileKey = UniqueKey();
 
       await tester.pumpWidget(
@@ -1559,14 +1621,20 @@ void main() {
       await gesture.addPointer();
       await gesture.moveTo(listTile);
       await tester.pumpAndSettle();
-      expect(RendererBinding.instance.mouseTracker.debugDeviceActiveCursor(1), SystemMouseCursors.text);
+      expect(
+        RendererBinding.instance.mouseTracker.debugDeviceActiveCursor(1),
+        SystemMouseCursors.text,
+      );
     });
   });
 
   testWidgets('ListTile horizontalTitleGap = 0.0', (WidgetTester tester) async {
-    Widget buildFrame(TextDirection textDirection, { double? themeHorizontalTitleGap, double? widgetHorizontalTitleGap }) {
+    Widget buildFrame(
+      TextDirection textDirection, {
+      double? themeHorizontalTitleGap,
+      double? widgetHorizontalTitleGap,
+    }) {
       return MaterialApp(
-        theme: ThemeData(useMaterial3: true),
         home: Directionality(
           textDirection: textDirection,
           child: Material(
@@ -1598,7 +1666,9 @@ void main() {
     expect(tester.getSize(find.byType(ListTile)), const Size(800.0, 56.0));
     expect(left('title'), 40.0);
 
-    await tester.pumpWidget(buildFrame(TextDirection.ltr, themeHorizontalTitleGap: 10, widgetHorizontalTitleGap: 0));
+    await tester.pumpWidget(
+      buildFrame(TextDirection.ltr, themeHorizontalTitleGap: 10, widgetHorizontalTitleGap: 0),
+    );
     expect(tester.getSize(find.byType(ListTile)), const Size(800.0, 56.0));
     expect(left('title'), 40.0);
 
@@ -1610,25 +1680,24 @@ void main() {
     expect(tester.getSize(find.byType(ListTile)), const Size(800.0, 56.0));
     expect(right('title'), 760.0);
 
-    await tester.pumpWidget(buildFrame(TextDirection.rtl, themeHorizontalTitleGap: 10, widgetHorizontalTitleGap: 0));
+    await tester.pumpWidget(
+      buildFrame(TextDirection.rtl, themeHorizontalTitleGap: 10, widgetHorizontalTitleGap: 0),
+    );
     expect(tester.getSize(find.byType(ListTile)), const Size(800.0, 56.0));
     expect(right('title'), 760.0);
   });
 
-  testWidgets('ListTile horizontalTitleGap = (default) && ListTile minLeadingWidth = (default)', (WidgetTester tester) async {
+  testWidgets('ListTile horizontalTitleGap = (default) && ListTile minLeadingWidth = (default)', (
+    WidgetTester tester,
+  ) async {
     Widget buildFrame(TextDirection textDirection) {
       return MaterialApp(
-        theme: ThemeData(useMaterial3: true),
         home: Directionality(
           textDirection: textDirection,
           child: Material(
             child: Container(
               alignment: Alignment.topLeft,
-              child: const ListTile(
-                leading: Text('L'),
-                title: Text('title'),
-                trailing: Text('T'),
-              ),
+              child: const ListTile(leading: Text('L'), title: Text('title'), trailing: Text('T')),
             ),
           ),
         ),
@@ -1652,12 +1721,8 @@ void main() {
   });
 
   testWidgets('ListTile horizontalTitleGap with visualDensity', (WidgetTester tester) async {
-    Widget buildFrame({
-      double? horizontalTitleGap,
-      VisualDensity? visualDensity,
-    }) {
+    Widget buildFrame({double? horizontalTitleGap, VisualDensity? visualDensity}) {
       return MaterialApp(
-        theme: ThemeData(useMaterial3: true),
         home: Directionality(
           textDirection: TextDirection.ltr,
           child: Material(
@@ -1678,28 +1743,35 @@ void main() {
 
     double left(String text) => tester.getTopLeft(find.text(text)).dx;
 
-    await tester.pumpWidget(buildFrame(
-      horizontalTitleGap: 10.0,
-      visualDensity: const VisualDensity(horizontal: VisualDensity.minimumDensity),
-    ));
+    await tester.pumpWidget(
+      buildFrame(
+        horizontalTitleGap: 10.0,
+        visualDensity: const VisualDensity(horizontal: VisualDensity.minimumDensity),
+      ),
+    );
     expect(tester.getSize(find.byType(ListTile)), const Size(800.0, 56.0));
     expect(left('title'), 42.0);
 
     // Pump another frame of the same widget to ensure the underlying render
     // object did not cache the original horizontalTitleGap calculation based on the
     // visualDensity
-    await tester.pumpWidget(buildFrame(
-      horizontalTitleGap: 10.0,
-      visualDensity: const VisualDensity(horizontal: VisualDensity.minimumDensity),
-    ));
+    await tester.pumpWidget(
+      buildFrame(
+        horizontalTitleGap: 10.0,
+        visualDensity: const VisualDensity(horizontal: VisualDensity.minimumDensity),
+      ),
+    );
     expect(tester.getSize(find.byType(ListTile)), const Size(800.0, 56.0));
     expect(left('title'), 42.0);
   });
 
   testWidgets('ListTile minVerticalPadding = 80.0', (WidgetTester tester) async {
-    Widget buildFrame(TextDirection textDirection, { double? themeMinVerticalPadding, double? widgetMinVerticalPadding }) {
+    Widget buildFrame(
+      TextDirection textDirection, {
+      double? themeMinVerticalPadding,
+      double? widgetMinVerticalPadding,
+    }) {
       return MaterialApp(
-        theme: ThemeData(useMaterial3: true),
         home: Directionality(
           textDirection: textDirection,
           child: Material(
@@ -1720,7 +1792,6 @@ void main() {
       );
     }
 
-
     await tester.pumpWidget(buildFrame(TextDirection.ltr, widgetMinVerticalPadding: 80));
     // 80 + 80 + 16(Title) = 176
     expect(tester.getSize(find.byType(ListTile)), const Size(800.0, 184.0));
@@ -1728,7 +1799,9 @@ void main() {
     await tester.pumpWidget(buildFrame(TextDirection.ltr, themeMinVerticalPadding: 80));
     expect(tester.getSize(find.byType(ListTile)), const Size(800.0, 184.0));
 
-    await tester.pumpWidget(buildFrame(TextDirection.ltr, themeMinVerticalPadding: 0, widgetMinVerticalPadding: 80));
+    await tester.pumpWidget(
+      buildFrame(TextDirection.ltr, themeMinVerticalPadding: 0, widgetMinVerticalPadding: 80),
+    );
     expect(tester.getSize(find.byType(ListTile)), const Size(800.0, 184.0));
 
     await tester.pumpWidget(buildFrame(TextDirection.rtl, widgetMinVerticalPadding: 80));
@@ -1738,12 +1811,18 @@ void main() {
     await tester.pumpWidget(buildFrame(TextDirection.rtl, themeMinVerticalPadding: 80));
     expect(tester.getSize(find.byType(ListTile)), const Size(800.0, 184.0));
 
-    await tester.pumpWidget(buildFrame(TextDirection.rtl, themeMinVerticalPadding: 0, widgetMinVerticalPadding: 80));
+    await tester.pumpWidget(
+      buildFrame(TextDirection.rtl, themeMinVerticalPadding: 0, widgetMinVerticalPadding: 80),
+    );
     expect(tester.getSize(find.byType(ListTile)), const Size(800.0, 184.0));
   });
 
   testWidgets('ListTile minLeadingWidth = 60.0', (WidgetTester tester) async {
-    Widget buildFrame(TextDirection textDirection, { double? themeMinLeadingWidth, double? widgetMinLeadingWidth }) {
+    Widget buildFrame(
+      TextDirection textDirection, {
+      double? themeMinLeadingWidth,
+      double? widgetMinLeadingWidth,
+    }) {
       return MediaQuery(
         data: const MediaQueryData(),
         child: Directionality(
@@ -1778,10 +1857,11 @@ void main() {
     expect(tester.getSize(find.byType(ListTile)), const Size(800.0, 56.0));
     expect(left('title'), 92.0);
 
-    await tester.pumpWidget(buildFrame(TextDirection.ltr, themeMinLeadingWidth: 0, widgetMinLeadingWidth: 60));
+    await tester.pumpWidget(
+      buildFrame(TextDirection.ltr, themeMinLeadingWidth: 0, widgetMinLeadingWidth: 60),
+    );
     expect(tester.getSize(find.byType(ListTile)), const Size(800.0, 56.0));
     expect(left('title'), 92.0);
-
 
     await tester.pumpWidget(buildFrame(TextDirection.rtl, widgetMinLeadingWidth: 60));
     expect(tester.getSize(find.byType(ListTile)), const Size(800.0, 56.0));
@@ -1792,21 +1872,51 @@ void main() {
     expect(tester.getSize(find.byType(ListTile)), const Size(800.0, 56.0));
     expect(right('title'), 708.0);
 
-    await tester.pumpWidget(buildFrame(TextDirection.rtl, themeMinLeadingWidth: 0, widgetMinLeadingWidth: 60));
+    await tester.pumpWidget(
+      buildFrame(TextDirection.rtl, themeMinLeadingWidth: 0, widgetMinLeadingWidth: 60),
+    );
     expect(tester.getSize(find.byType(ListTile)), const Size(800.0, 56.0));
     expect(right('title'), 708.0);
   });
+  testWidgets('ListTile minTileHeight', (WidgetTester tester) async {
+    Widget buildFrame(TextDirection textDirection, {double? minTileHeight}) {
+      return MediaQuery(
+        data: const MediaQueryData(),
+        child: Directionality(
+          textDirection: textDirection,
+          child: Material(
+            child: Container(
+              alignment: Alignment.topLeft,
+              child: ListTile(minTileHeight: minTileHeight),
+            ),
+          ),
+        ),
+      );
+    }
 
-  testWidgets('colors are applied to leading and trailing text widgets', (WidgetTester tester) async {
+    // Default list tile with height = 56.0
+    await tester.pumpWidget(buildFrame(TextDirection.ltr));
+    expect(tester.getSize(find.byType(ListTile)), const Size(800.0, 56.0));
+
+    // Set list tile height = 30.0
+    await tester.pumpWidget(buildFrame(TextDirection.ltr, minTileHeight: 30));
+    expect(tester.getSize(find.byType(ListTile)), const Size(800.0, 30.0));
+
+    // Set list tile height = 60.0
+    await tester.pumpWidget(buildFrame(TextDirection.ltr, minTileHeight: 60));
+    expect(tester.getSize(find.byType(ListTile)), const Size(800.0, 60.0));
+  });
+
+  testWidgets('colors are applied to leading and trailing text widgets', (
+    WidgetTester tester,
+  ) async {
     final Key leadingKey = UniqueKey();
     final Key trailingKey = UniqueKey();
 
     late ThemeData theme;
-    Widget buildFrame({
-      bool enabled = true,
-      bool selected = false,
-    }) {
+    Widget buildFrame({bool enabled = true, bool selected = false}) {
       return MaterialApp(
+        theme: ThemeData(useMaterial3: false),
         home: Material(
           child: Center(
             child: Builder(
@@ -1849,14 +1959,14 @@ void main() {
   });
 
   testWidgets('selected, enabled ListTile default icon color', (WidgetTester tester) async {
-    final ThemeData theme = ThemeData(useMaterial3: true);
+    final ThemeData theme = ThemeData();
     final ColorScheme colorScheme = theme.colorScheme;
     final Key leadingKey = UniqueKey();
     final Key titleKey = UniqueKey();
     final Key subtitleKey = UniqueKey();
     final Key trailingKey = UniqueKey();
 
-    Widget buildFrame({required bool selected }) {
+    Widget buildFrame({required bool selected}) {
       return MaterialApp(
         theme: theme,
         home: Material(
@@ -1882,16 +1992,15 @@ void main() {
     expect(iconColor(trailingKey), colorScheme.primary);
 
     await tester.pumpWidget(buildFrame(selected: false));
-    expect(iconColor(leadingKey), colorScheme.onSurface);
-    expect(iconColor(titleKey), colorScheme.onSurface);
-    expect(iconColor(subtitleKey), colorScheme.onSurface);
-    expect(iconColor(trailingKey), colorScheme.onSurface);
+    expect(iconColor(leadingKey), colorScheme.onSurfaceVariant);
+    expect(iconColor(titleKey), colorScheme.onSurfaceVariant);
+    expect(iconColor(subtitleKey), colorScheme.onSurfaceVariant);
+    expect(iconColor(trailingKey), colorScheme.onSurfaceVariant);
   });
 
   testWidgets('ListTile font size', (WidgetTester tester) async {
     Widget buildFrame() {
       return MaterialApp(
-        theme: ThemeData(useMaterial3: true),
         home: Material(
           child: Center(
             child: Builder(
@@ -1899,7 +2008,7 @@ void main() {
                 return const ListTile(
                   leading: TestText('leading'),
                   title: TestText('title'),
-                  subtitle: TestText('subtitle') ,
+                  subtitle: TestText('subtitle'),
                   trailing: TestText('trailing'),
                 );
               },
@@ -1924,7 +2033,6 @@ void main() {
   testWidgets('ListTile text color', (WidgetTester tester) async {
     Widget buildFrame() {
       return MaterialApp(
-        theme: ThemeData(useMaterial3: true),
         home: Material(
           child: Center(
             child: Builder(
@@ -1932,7 +2040,7 @@ void main() {
                 return const ListTile(
                   leading: TestText('leading'),
                   title: TestText('title'),
-                  subtitle: TestText('subtitle') ,
+                  subtitle: TestText('subtitle'),
                   trailing: TestText('trailing'),
                 );
               },
@@ -1942,28 +2050,29 @@ void main() {
       );
     }
 
-    final ThemeData theme = ThemeData(useMaterial3: true);
+    final ThemeData theme = ThemeData();
 
     // ListTile default text colors.
     await tester.pumpWidget(buildFrame());
     final RenderParagraph leading = _getTextRenderObject(tester, 'leading');
-    expect(leading.text.style!.color, theme.textTheme.labelSmall!.color);
+    expect(leading.text.style!.color, theme.colorScheme.onSurfaceVariant);
     final RenderParagraph title = _getTextRenderObject(tester, 'title');
-    expect(title.text.style!.color, theme.textTheme.bodyLarge!.color);
+    expect(title.text.style!.color, theme.colorScheme.onSurface);
     final RenderParagraph subtitle = _getTextRenderObject(tester, 'subtitle');
-    expect(subtitle.text.style!.color, theme.textTheme.bodyMedium!.color);
+    expect(subtitle.text.style!.color, theme.colorScheme.onSurfaceVariant);
     final RenderParagraph trailing = _getTextRenderObject(tester, 'trailing');
-    expect(trailing.text.style!.color, theme.textTheme.labelSmall!.color);
+    expect(trailing.text.style!.color, theme.colorScheme.onSurfaceVariant);
   });
 
   testWidgets('Default ListTile debugFillProperties', (WidgetTester tester) async {
     final DiagnosticPropertiesBuilder builder = DiagnosticPropertiesBuilder();
     const ListTile().debugFillProperties(builder);
 
-    final List<String> description = builder.properties
-      .where((DiagnosticsNode node) => !node.isFiltered(DiagnosticLevel.info))
-      .map((DiagnosticsNode node) => node.toString())
-      .toList();
+    final List<String> description =
+        builder.properties
+            .where((DiagnosticsNode node) => !node.isFiltered(DiagnosticLevel.info))
+            .map((DiagnosticsNode node) => node.toString())
+            .toList();
 
     expect(description, <String>[]);
   });
@@ -1998,43 +2107,42 @@ void main() {
       horizontalTitleGap: 4.0,
       minVerticalPadding: 2.0,
       minLeadingWidth: 6.0,
+      titleAlignment: ListTileTitleAlignment.bottom,
     ).debugFillProperties(builder);
 
-    final List<String> description = builder.properties
-      .where((DiagnosticsNode node) => !node.isFiltered(DiagnosticLevel.info))
-      .map((DiagnosticsNode node) => node.toString())
-      .toList();
+    final List<String> description =
+        builder.properties
+            .where((DiagnosticsNode node) => !node.isFiltered(DiagnosticLevel.info))
+            .map((DiagnosticsNode node) => node.toString())
+            .toList();
 
     expect(
       description,
       equalsIgnoringHashCodes(<String>[
-        'leading: Text',
-        'title: Text',
-        'subtitle: Text',
-        'trailing: Text',
         'isThreeLine: THREE_LINE',
         'dense: true',
         'visualDensity: VisualDensity#00000(h: 0.0, v: 0.0)',
         'shape: RoundedRectangleBorder(BorderSide(width: 0.0, style: none), BorderRadius.zero)',
         'style: ListTileStyle.list',
-        'selectedColor: Color(0xff0000ff)',
-        'iconColor: Color(0xff00ff00)',
-        'textColor: Color(0xffff0000)',
+        'selectedColor: ${const Color(0xff0000ff)}',
+        'iconColor: ${const Color(0xff00ff00)}',
+        'textColor: ${const Color(0xffff0000)}',
         'titleTextStyle: TextStyle(inherit: true, size: 22.0)',
         'subtitleTextStyle: TextStyle(inherit: true, size: 18.0)',
         'leadingAndTrailingTextStyle: TextStyle(inherit: true, size: 16.0)',
         'contentPadding: EdgeInsets.zero',
         'enabled: false',
         'selected: true',
-        'focusColor: Color(0xff00ffff)',
-        'hoverColor: Color(0xff0000ff)',
+        'focusColor: ${const Color(0xff00ffff)}',
+        'hoverColor: ${const Color(0xff0000ff)}',
         'autofocus: true',
-        'tileColor: Color(0xffffff00)',
-        'selectedTileColor: Color(0xff123456)',
+        'tileColor: ${const Color(0xffffff00)}',
+        'selectedTileColor: ${const Color(0xff123456)}',
         'enableFeedback: false',
         'horizontalTitleGap: 4.0',
         'minVerticalPadding: 2.0',
         'minLeadingWidth: 6.0',
+        'titleAlignment: ListTileTitleAlignment.bottom',
       ]),
     );
   });
@@ -2048,7 +2156,6 @@ void main() {
 
     Widget buildFrame() {
       return MaterialApp(
-        theme: ThemeData(useMaterial3: true),
         home: Material(
           child: Center(
             child: Builder(
@@ -2066,7 +2173,7 @@ void main() {
                     return defaultColor;
                   }),
                   title: const TestText('title'),
-                  subtitle: const TestText('subtitle') ,
+                  subtitle: const TestText('subtitle'),
                 );
               },
             ),
@@ -2105,7 +2212,6 @@ void main() {
 
     Widget buildFrame() {
       return MaterialApp(
-        theme: ThemeData(useMaterial3: true),
         home: Material(
           child: Center(
             child: Builder(
@@ -2150,6 +2256,95 @@ void main() {
     expect(iconColor(leadingKey), selectedColor);
   });
 
+  testWidgets(
+    'ListTile.iconColor respects iconColor property with icon buttons Material 3 in presence of IconButtonTheme override',
+    (WidgetTester tester) async {
+      const Color iconButtonThemeColor = Colors.blue;
+      const Color listTileIconColor = Colors.green;
+      const Icon leadingIcon = Icon(Icons.favorite);
+      const Icon trailingIcon = Icon(Icons.close);
+
+      Widget buildFrame() {
+        return MaterialApp(
+          theme: ThemeData(
+            iconButtonTheme: IconButtonThemeData(
+              style: IconButton.styleFrom(foregroundColor: iconButtonThemeColor),
+            ),
+          ),
+          home: Material(
+            child: Center(
+              child: Builder(
+                builder: (BuildContext context) {
+                  return ListTile(
+                    iconColor: listTileIconColor,
+                    leading: IconButton(icon: leadingIcon, onPressed: () {}),
+                    trailing: IconButton(icon: trailingIcon, onPressed: () {}),
+                  );
+                },
+              ),
+            ),
+          ),
+        );
+      }
+
+      TextStyle? getIconStyle(WidgetTester tester, IconData icon) =>
+          tester
+              .widget<RichText>(
+                find.descendant(of: find.byIcon(icon), matching: find.byType(RichText)),
+              )
+              .text
+              .style;
+
+      await tester.pumpWidget(buildFrame());
+      expect(getIconStyle(tester, leadingIcon.icon!)?.color, listTileIconColor);
+      expect(getIconStyle(tester, trailingIcon.icon!)?.color, listTileIconColor);
+    },
+  );
+
+  testWidgets('ListTile respects and combines parent IconButtonThemeData style', (
+    WidgetTester tester,
+  ) async {
+    const Color customIconColor = Colors.green;
+    const Icon leadingIcon = Icon(Icons.favorite);
+    const Icon trailingIcon = Icon(Icons.close);
+    const OutlinedBorder customShape = RoundedRectangleBorder(side: BorderSide());
+
+    Widget buildFrame() {
+      return MaterialApp(
+        theme: ThemeData(
+          iconButtonTheme: IconButtonThemeData(style: IconButton.styleFrom(shape: customShape)),
+        ),
+        home: Scaffold(
+          body: Center(
+            child: ListTile(
+              iconColor: customIconColor,
+              leading: IconButton(icon: leadingIcon, onPressed: () {}),
+              trailing: IconButton(icon: trailingIcon, onPressed: () {}),
+            ),
+          ),
+        ),
+      );
+    }
+
+    await tester.pumpWidget(buildFrame());
+
+    // Verify that the merged theme retains the parent shape
+    final BuildContext tileContext = tester.element(find.byType(ListTile));
+    final IconButtonThemeData mergedTheme = IconButtonTheme.of(tileContext);
+    expect(mergedTheme.style?.shape?.resolve(<MaterialState>{}), customShape);
+
+    // Verify that ListTile's iconColor overrides the inherited color
+    Color? getIconColor(IconData iconData) {
+      final RichText richText = tester.widget<RichText>(
+        find.descendant(of: find.byIcon(iconData), matching: find.byType(RichText)),
+      );
+      return richText.text.style?.color;
+    }
+
+    expect(getIconColor(leadingIcon.icon!), customIconColor);
+    expect(getIconColor(trailingIcon.icon!), customIconColor);
+  });
+
   testWidgets('ListTile.dense does not throw assertion', (WidgetTester tester) async {
     // This is a regression test for https://github.com/flutter/flutter/pull/116908
 
@@ -2160,10 +2355,7 @@ void main() {
           child: Center(
             child: StatefulBuilder(
               builder: (BuildContext context, StateSetter setState) {
-                return const ListTile(
-                  dense: true,
-                  title: Text('Title'),
-                );
+                return const ListTile(dense: true, title: Text('Title'));
               },
             ),
           ),
@@ -2178,9 +2370,336 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('titleAlignment position with title widget', (WidgetTester tester) async {
+    final Key leadingKey = GlobalKey();
+    final Key trailingKey = GlobalKey();
+    const double leadingHeight = 24.0;
+    const double titleHeight = 50.0;
+    const double trailingHeight = 24.0;
+    const double minVerticalPadding = 10.0;
+    const double tileHeight = minVerticalPadding * 2 + titleHeight;
+
+    Widget buildFrame({ListTileTitleAlignment? titleAlignment}) {
+      return MaterialApp(
+        home: Material(
+          child: Center(
+            child: ListTile(
+              titleAlignment: titleAlignment,
+              minVerticalPadding: minVerticalPadding,
+              leading: SizedBox(key: leadingKey, width: 24.0, height: leadingHeight),
+              title: const SizedBox(width: 20.0, height: titleHeight),
+              trailing: SizedBox(key: trailingKey, width: 24.0, height: trailingHeight),
+            ),
+          ),
+        ),
+      );
+    }
+
+    // If [ThemeData.useMaterial3] is true, the default title alignment is
+    // [ListTileTitleAlignment.threeLine], which positions the leading and
+    // trailing widgets center vertically in the tile if the [ListTile.isThreeLine]
+    // property is false.
+    await tester.pumpWidget(buildFrame());
+    Offset tileOffset = tester.getTopLeft(find.byType(ListTile));
+    Offset leadingOffset = tester.getTopLeft(find.byKey(leadingKey));
+    Offset trailingOffset = tester.getTopRight(find.byKey(trailingKey));
+
+    // Leading and trailing widgets are centered vertically in the tile.
+    const double centerPosition = (tileHeight / 2) - (leadingHeight / 2);
+    expect(leadingOffset.dy - tileOffset.dy, centerPosition);
+    expect(trailingOffset.dy - tileOffset.dy, centerPosition);
+
+    // Test [ListTileTitleAlignment.threeLine] alignment.
+    await tester.pumpWidget(buildFrame(titleAlignment: ListTileTitleAlignment.threeLine));
+    tileOffset = tester.getTopLeft(find.byType(ListTile));
+    leadingOffset = tester.getTopLeft(find.byKey(leadingKey));
+    trailingOffset = tester.getTopRight(find.byKey(trailingKey));
+
+    // Leading and trailing widgets are centered vertically in the tile,
+    // If the [ListTile.isThreeLine] property is false.
+    expect(leadingOffset.dy - tileOffset.dy, centerPosition);
+    expect(trailingOffset.dy - tileOffset.dy, centerPosition);
+
+    // Test [ListTileTitleAlignment.titleHeight] alignment.
+    await tester.pumpWidget(buildFrame(titleAlignment: ListTileTitleAlignment.titleHeight));
+    tileOffset = tester.getTopLeft(find.byType(ListTile));
+    leadingOffset = tester.getTopLeft(find.byKey(leadingKey));
+    trailingOffset = tester.getTopRight(find.byKey(trailingKey));
+
+    // If the tile height is less than 72.0 pixels, the leading widget is placed
+    // 16.0 pixels below the top of the title widget, and the trailing is centered
+    // vertically in the tile.
+    const double titlePosition = 16.0;
+    expect(leadingOffset.dy - tileOffset.dy, titlePosition);
+    expect(trailingOffset.dy - tileOffset.dy, centerPosition);
+
+    // Test [ListTileTitleAlignment.top] alignment.
+    await tester.pumpWidget(buildFrame(titleAlignment: ListTileTitleAlignment.top));
+    tileOffset = tester.getTopLeft(find.byType(ListTile));
+    leadingOffset = tester.getTopLeft(find.byKey(leadingKey));
+    trailingOffset = tester.getTopRight(find.byKey(trailingKey));
+
+    // Leading and trailing widgets are placed minVerticalPadding below
+    // the top of the title widget.
+    const double topPosition = minVerticalPadding;
+    expect(leadingOffset.dy - tileOffset.dy, topPosition);
+    expect(trailingOffset.dy - tileOffset.dy, topPosition);
+
+    // Test [ListTileTitleAlignment.center] alignment.
+    await tester.pumpWidget(buildFrame(titleAlignment: ListTileTitleAlignment.center));
+    tileOffset = tester.getTopLeft(find.byType(ListTile));
+    leadingOffset = tester.getTopLeft(find.byKey(leadingKey));
+    trailingOffset = tester.getTopRight(find.byKey(trailingKey));
+
+    // Leading and trailing widgets are centered vertically in the tile.
+    expect(leadingOffset.dy - tileOffset.dy, centerPosition);
+    expect(trailingOffset.dy - tileOffset.dy, centerPosition);
+
+    // Test [ListTileTitleAlignment.bottom] alignment.
+    await tester.pumpWidget(buildFrame(titleAlignment: ListTileTitleAlignment.bottom));
+    tileOffset = tester.getTopLeft(find.byType(ListTile));
+    leadingOffset = tester.getTopLeft(find.byKey(leadingKey));
+    trailingOffset = tester.getTopRight(find.byKey(trailingKey));
+
+    // Leading and trailing widgets are placed minVerticalPadding above
+    // the bottom of the subtitle widget.
+    const double bottomPosition = tileHeight - minVerticalPadding - leadingHeight;
+    expect(leadingOffset.dy - tileOffset.dy, bottomPosition);
+    expect(trailingOffset.dy - tileOffset.dy, bottomPosition);
+  });
+
+  testWidgets('titleAlignment position with title and subtitle widgets', (
+    WidgetTester tester,
+  ) async {
+    final Key leadingKey = GlobalKey();
+    final Key trailingKey = GlobalKey();
+    const double leadingHeight = 24.0;
+    const double titleHeight = 50.0;
+    const double subtitleHeight = 50.0;
+    const double trailingHeight = 24.0;
+    const double minVerticalPadding = 10.0;
+    const double tileHeight = minVerticalPadding * 2 + titleHeight + subtitleHeight;
+
+    Widget buildFrame({ListTileTitleAlignment? titleAlignment}) {
+      return MaterialApp(
+        home: Material(
+          child: Center(
+            child: ListTile(
+              titleAlignment: titleAlignment,
+              minVerticalPadding: minVerticalPadding,
+              leading: SizedBox(key: leadingKey, width: 24.0, height: leadingHeight),
+              title: const SizedBox(width: 20.0, height: titleHeight),
+              subtitle: const SizedBox(width: 20.0, height: subtitleHeight),
+              trailing: SizedBox(key: trailingKey, width: 24.0, height: trailingHeight),
+            ),
+          ),
+        ),
+      );
+    }
+
+    // If [ThemeData.useMaterial3] is true, the default title alignment is
+    // [ListTileTitleAlignment.threeLine], which positions the leading and
+    // trailing widgets center vertically in the tile if the [ListTile.isThreeLine]
+    // property is false.
+    await tester.pumpWidget(buildFrame());
+    Offset tileOffset = tester.getTopLeft(find.byType(ListTile));
+    Offset leadingOffset = tester.getTopLeft(find.byKey(leadingKey));
+    Offset trailingOffset = tester.getTopRight(find.byKey(trailingKey));
+
+    // Leading and trailing widgets are centered vertically in the tile.
+    const double centerPosition = (tileHeight / 2) - (leadingHeight / 2);
+    expect(leadingOffset.dy - tileOffset.dy, centerPosition);
+    expect(trailingOffset.dy - tileOffset.dy, centerPosition);
+
+    // Test [ListTileTitleAlignment.threeLine] alignment.
+    await tester.pumpWidget(buildFrame(titleAlignment: ListTileTitleAlignment.threeLine));
+    tileOffset = tester.getTopLeft(find.byType(ListTile));
+    leadingOffset = tester.getTopLeft(find.byKey(leadingKey));
+    trailingOffset = tester.getTopRight(find.byKey(trailingKey));
+
+    // Leading and trailing widgets are centered vertically in the tile,
+    // If the [ListTile.isThreeLine] property is false.
+    expect(leadingOffset.dy - tileOffset.dy, centerPosition);
+    expect(trailingOffset.dy - tileOffset.dy, centerPosition);
+
+    // Test [ListTileTitleAlignment.titleHeight] alignment.
+    await tester.pumpWidget(buildFrame(titleAlignment: ListTileTitleAlignment.titleHeight));
+    tileOffset = tester.getTopLeft(find.byType(ListTile));
+    leadingOffset = tester.getTopLeft(find.byKey(leadingKey));
+    trailingOffset = tester.getTopRight(find.byKey(trailingKey));
+
+    // Leading and trailing widgets are positioned 16.0 pixels below the
+    // top of the title widget.
+    const double titlePosition = 16.0;
+    expect(leadingOffset.dy - tileOffset.dy, titlePosition);
+    expect(trailingOffset.dy - tileOffset.dy, titlePosition);
+
+    // Test [ListTileTitleAlignment.top] alignment.
+    await tester.pumpWidget(buildFrame(titleAlignment: ListTileTitleAlignment.top));
+    tileOffset = tester.getTopLeft(find.byType(ListTile));
+    leadingOffset = tester.getTopLeft(find.byKey(leadingKey));
+    trailingOffset = tester.getTopRight(find.byKey(trailingKey));
+
+    // Leading and trailing widgets are placed minVerticalPadding below
+    // the top of the title widget.
+    const double topPosition = minVerticalPadding;
+    expect(leadingOffset.dy - tileOffset.dy, topPosition);
+    expect(trailingOffset.dy - tileOffset.dy, topPosition);
+
+    // Test [ListTileTitleAlignment.center] alignment.
+    await tester.pumpWidget(buildFrame(titleAlignment: ListTileTitleAlignment.center));
+    tileOffset = tester.getTopLeft(find.byType(ListTile));
+    leadingOffset = tester.getTopLeft(find.byKey(leadingKey));
+    trailingOffset = tester.getTopRight(find.byKey(trailingKey));
+
+    // Leading and trailing widgets are centered vertically in the tile.
+    expect(leadingOffset.dy - tileOffset.dy, centerPosition);
+    expect(trailingOffset.dy - tileOffset.dy, centerPosition);
+
+    // Test [ListTileTitleAlignment.bottom] alignment.
+    await tester.pumpWidget(buildFrame(titleAlignment: ListTileTitleAlignment.bottom));
+    tileOffset = tester.getTopLeft(find.byType(ListTile));
+    leadingOffset = tester.getTopLeft(find.byKey(leadingKey));
+    trailingOffset = tester.getTopRight(find.byKey(trailingKey));
+
+    // Leading and trailing widgets are placed minVerticalPadding above
+    // the bottom of the subtitle widget.
+    const double bottomPosition = tileHeight - minVerticalPadding - leadingHeight;
+    expect(leadingOffset.dy - tileOffset.dy, bottomPosition);
+    expect(trailingOffset.dy - tileOffset.dy, bottomPosition);
+  });
+
+  testWidgets("ListTile.isThreeLine updates ListTileTitleAlignment.threeLine's alignment", (
+    WidgetTester tester,
+  ) async {
+    final Key leadingKey = GlobalKey();
+    final Key trailingKey = GlobalKey();
+    const double leadingHeight = 24.0;
+    const double titleHeight = 50.0;
+    const double subtitleHeight = 50.0;
+    const double trailingHeight = 24.0;
+    const double minVerticalPadding = 10.0;
+    const double tileHeight = minVerticalPadding * 2 + titleHeight + subtitleHeight;
+
+    Widget buildFrame({ListTileTitleAlignment? titleAlignment, bool isThreeLine = false}) {
+      return MaterialApp(
+        home: Material(
+          child: Center(
+            child: ListTile(
+              titleAlignment: titleAlignment,
+              minVerticalPadding: minVerticalPadding,
+              leading: SizedBox(key: leadingKey, width: 24.0, height: leadingHeight),
+              title: const SizedBox(width: 20.0, height: titleHeight),
+              subtitle: const SizedBox(width: 20.0, height: subtitleHeight),
+              trailing: SizedBox(key: trailingKey, width: 24.0, height: trailingHeight),
+              isThreeLine: isThreeLine,
+            ),
+          ),
+        ),
+      );
+    }
+
+    // If [ThemeData.useMaterial3] is true, then title alignment should
+    // default to [ListTileTitleAlignment.threeLine].
+    await tester.pumpWidget(buildFrame());
+    Offset tileOffset = tester.getTopLeft(find.byType(ListTile));
+    Offset leadingOffset = tester.getTopLeft(find.byKey(leadingKey));
+    Offset trailingOffset = tester.getTopRight(find.byKey(trailingKey));
+
+    // By default, leading and trailing widgets are centered vertically
+    // in the tile.
+    const double centerPosition = (tileHeight / 2) - (leadingHeight / 2);
+    expect(leadingOffset.dy - tileOffset.dy, centerPosition);
+    expect(trailingOffset.dy - tileOffset.dy, centerPosition);
+
+    // Set [ListTile.isThreeLine] to true to update the alignment.
+    await tester.pumpWidget(buildFrame(isThreeLine: true));
+    tileOffset = tester.getTopLeft(find.byType(ListTile));
+    leadingOffset = tester.getTopLeft(find.byKey(leadingKey));
+    trailingOffset = tester.getTopRight(find.byKey(trailingKey));
+
+    // The leading and trailing widgets are placed minVerticalPadding
+    // to the top of the tile widget.
+    const double topPosition = minVerticalPadding;
+    expect(leadingOffset.dy - tileOffset.dy, topPosition);
+    expect(trailingOffset.dy - tileOffset.dy, topPosition);
+  });
+
+  group('Leading/Trailing exceeding list tile width throws exception', () {
+    final List<Object> exceptions = <Object>[];
+    final FlutterExceptionHandler? oldHandler = FlutterError.onError;
+    tearDown(exceptions.clear);
+
+    void onError(FlutterErrorDetails details) => exceptions.add(details.exception);
+    Widget buildListTile({Widget? leading, Widget? trailing}) {
+      return MaterialApp(
+        home: Material(
+          child: Center(
+            child: SizedBox(width: 100, child: ListTile(leading: leading, trailing: trailing)),
+          ),
+        ),
+      );
+    }
+
+    testWidgets('leading', (WidgetTester tester) async {
+      // Test a leading widget that exceeds the list tile width.
+      // 16 (content padding) + 61 (leading width) + 24 (content padding) = 101.
+      // List tile width is 100 as a result, an exception should be thrown.
+      FlutterError.onError = onError;
+      await tester.pumpWidget(buildListTile(leading: const SizedBox(width: 61)));
+      FlutterError.onError = oldHandler;
+
+      final FlutterError error = exceptions.first as FlutterError;
+      expect(error.diagnostics.length, 3);
+      expect(
+        error.diagnostics[0].toStringDeep(),
+        'Leading widget consumes the entire tile width (including\nListTile.contentPadding).\n',
+      );
+      expect(
+        error.diagnostics[1].toStringDeep(),
+        'Either resize the tile width so that the leading widget plus any\n'
+        'content padding do not exceed the tile width, or use a sized\n'
+        'widget, or consider replacing ListTile with a custom widget.\n',
+      );
+      expect(
+        error.diagnostics[2].toStringDeep(),
+        'See also:\n'
+        'https://api.flutter.dev/flutter/material/ListTile-class.html#material.ListTile.4\n',
+      );
+    });
+
+    testWidgets('trailing', (WidgetTester tester) async {
+      // Test a trailing widget that exceeds the list tile width.
+      // 16 (content padding) + 61 (trailing width) + 24 (content padding) = 101.
+      // List tile width is 100 as a result, an exception should be thrown.
+      FlutterError.onError = onError;
+      await tester.pumpWidget(buildListTile(trailing: const SizedBox(width: 61)));
+      FlutterError.onError = oldHandler;
+
+      final FlutterError error = exceptions.first as FlutterError;
+      expect(error.diagnostics.length, 3);
+      expect(
+        error.diagnostics[0].toStringDeep(),
+        'Trailing widget consumes the entire tile width (including\nListTile.contentPadding).\n',
+      );
+      expect(
+        error.diagnostics[1].toStringDeep(),
+        'Either resize the tile width so that the trailing widget plus any\n'
+        'content padding do not exceed the tile width, or use a sized\n'
+        'widget, or consider replacing ListTile with a custom widget.\n',
+      );
+      expect(
+        error.diagnostics[2].toStringDeep(),
+        'See also:\n'
+        'https://api.flutter.dev/flutter/material/ListTile-class.html#material.ListTile.4\n',
+      );
+    });
+  });
+
   group('Material 2', () {
-    // Tests that are only relevant for Material 2. Once ThemeData.useMaterial3
-    // is turned on by default, these tests can be removed.
+    // These tests are only relevant for Material 2. Once Material 2
+    // support is deprecated and the APIs are removed, these tests
+    // can be deleted.
 
     testWidgets('ListTile geometry (LTR)', (WidgetTester tester) async {
       // See https://material.io/go/design-lists
@@ -2191,22 +2710,28 @@ void main() {
 
       const double leftPadding = 10.0;
       const double rightPadding = 20.0;
-      Widget buildFrame({ bool dense = false, bool isTwoLine = false, bool isThreeLine = false, double textScaleFactor = 1.0, double? subtitleScaleFactor }) {
+      Widget buildFrame({
+        bool dense = false,
+        bool isTwoLine = false,
+        bool isThreeLine = false,
+        TextScaler textScaler = TextScaler.noScaling,
+        TextScaler? subtitleScaler,
+      }) {
         hasSubtitle = isTwoLine || isThreeLine;
-        subtitleScaleFactor ??= textScaleFactor;
+        subtitleScaler ??= textScaler;
         return MaterialApp(
           theme: ThemeData(useMaterial3: false),
           home: MediaQuery(
             data: MediaQueryData(
               padding: const EdgeInsets.only(left: leftPadding, right: rightPadding),
-              textScaleFactor: textScaleFactor,
+              textScaler: textScaler,
             ),
             child: Material(
               child: Center(
                 child: ListTile(
                   leading: SizedBox(key: leadingKey, width: 24.0, height: 24.0),
                   title: const Text('title'),
-                  subtitle: hasSubtitle ? Text('subtitle', textScaleFactor: subtitleScaleFactor) : null,
+                  subtitle: hasSubtitle ? Text('subtitle', textScaler: subtitleScaler) : null,
                   trailing: SizedBox(key: trailingKey, width: 24.0, height: 24.0),
                   dense: dense,
                   isThreeLine: isThreeLine,
@@ -2293,38 +2818,52 @@ void main() {
       testHorizontalGeometry();
       testVerticalGeometry(76.0);
 
-      await tester.pumpWidget(buildFrame(textScaleFactor: 4.0));
+      await tester.pumpWidget(buildFrame(textScaler: const TextScaler.linear(4.0)));
       testChildren();
       testHorizontalGeometry();
       testVerticalGeometry(72.0);
 
-      await tester.pumpWidget(buildFrame(dense: true, textScaleFactor: 4.0));
+      await tester.pumpWidget(buildFrame(dense: true, textScaler: const TextScaler.linear(4.0)));
       testChildren();
       testHorizontalGeometry();
       testVerticalGeometry(72.0);
 
-      await tester.pumpWidget(buildFrame(isTwoLine: true, textScaleFactor: 4.0));
+      await tester.pumpWidget(
+        buildFrame(isTwoLine: true, textScaler: const TextScaler.linear(4.0)),
+      );
       testChildren();
       testHorizontalGeometry();
       testVerticalGeometry(128.0);
 
       // Make sure that the height of a large subtitle is taken into account.
-      await tester.pumpWidget(buildFrame(isTwoLine: true, textScaleFactor: 0.5, subtitleScaleFactor: 4.0));
+      await tester.pumpWidget(
+        buildFrame(
+          isTwoLine: true,
+          textScaler: const TextScaler.linear(0.5),
+          subtitleScaler: const TextScaler.linear(4.0),
+        ),
+      );
       testChildren();
       testHorizontalGeometry();
       testVerticalGeometry(72.0);
 
-      await tester.pumpWidget(buildFrame(isTwoLine: true, dense: true, textScaleFactor: 4.0));
+      await tester.pumpWidget(
+        buildFrame(isTwoLine: true, dense: true, textScaler: const TextScaler.linear(4.0)),
+      );
       testChildren();
       testHorizontalGeometry();
       testVerticalGeometry(128.0);
 
-      await tester.pumpWidget(buildFrame(isThreeLine: true, textScaleFactor: 4.0));
+      await tester.pumpWidget(
+        buildFrame(isThreeLine: true, textScaler: const TextScaler.linear(4.0)),
+      );
       testChildren();
       testHorizontalGeometry();
       testVerticalGeometry(128.0);
 
-      await tester.pumpWidget(buildFrame(isThreeLine: true, dense: true, textScaleFactor: 4.0));
+      await tester.pumpWidget(
+        buildFrame(isThreeLine: true, dense: true, textScaler: const TextScaler.linear(4.0)),
+      );
       testChildren();
       testHorizontalGeometry();
       testVerticalGeometry(128.0);
@@ -2333,26 +2872,22 @@ void main() {
     testWidgets('ListTile geometry (RTL)', (WidgetTester tester) async {
       const double leftPadding = 10.0;
       const double rightPadding = 20.0;
-      await tester.pumpWidget(MaterialApp(
-        theme: ThemeData(useMaterial3: false),
-        home: const MediaQuery(
-          data: MediaQueryData(
-            padding: EdgeInsets.only(left: leftPadding, right: rightPadding),
-          ),
-          child: Directionality(
-            textDirection: TextDirection.rtl,
-            child: Material(
-              child: Center(
-                child: ListTile(
-                  leading: Text('L'),
-                  title: Text('title'),
-                  trailing: Text('T'),
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: ThemeData(useMaterial3: false),
+          home: const MediaQuery(
+            data: MediaQueryData(padding: EdgeInsets.only(left: leftPadding, right: rightPadding)),
+            child: Directionality(
+              textDirection: TextDirection.rtl,
+              child: Material(
+                child: Center(
+                  child: ListTile(leading: Text('L'), title: Text('title'), trailing: Text('T')),
                 ),
               ),
             ),
           ),
         ),
-      ));
+      );
 
       double left(String text) => tester.getTopLeft(find.text(text)).dx;
       double right(String text) => tester.getTopRight(find.text(text)).dx;
@@ -2395,12 +2930,30 @@ void main() {
         ),
       );
       //                                                                          LEFT                  TOP          WIDTH  HEIGHT
-      expect(tester.getRect(find.byType(ListTile).at(0)),     const Rect.fromLTWH(                0.0,          0.0, 800.0, 177.0));
-      expect(tester.getRect(find.byType(CircleAvatar).at(0)), const Rect.fromLTWH(               16.0,         16.0,  40.0,  40.0));
-      expect(tester.getRect(find.byType(Placeholder).at(0)),  const Rect.fromLTWH(800.0 - 24.0 - 16.0,         16.0,  24.0,  24.0));
-      expect(tester.getRect(find.byType(ListTile).at(1)),     const Rect.fromLTWH(                0.0,        177.0, 800.0,  48.0));
-      expect(tester.getRect(find.byType(CircleAvatar).at(1)), const Rect.fromLTWH(               16.0, 177.0 +  4.0,  40.0,  40.0));
-      expect(tester.getRect(find.byType(Placeholder).at(1)),  const Rect.fromLTWH(800.0 - 24.0 - 16.0, 177.0 + 12.0,  24.0,  24.0));
+      expect(
+        tester.getRect(find.byType(ListTile).at(0)),
+        const Rect.fromLTWH(0.0, 0.0, 800.0, 177.0),
+      );
+      expect(
+        tester.getRect(find.byType(CircleAvatar).at(0)),
+        const Rect.fromLTWH(16.0, 16.0, 40.0, 40.0),
+      );
+      expect(
+        tester.getRect(find.byType(Placeholder).at(0)),
+        const Rect.fromLTWH(800.0 - 24.0 - 16.0, 16.0, 24.0, 24.0),
+      );
+      expect(
+        tester.getRect(find.byType(ListTile).at(1)),
+        const Rect.fromLTWH(0.0, 177.0, 800.0, 48.0),
+      );
+      expect(
+        tester.getRect(find.byType(CircleAvatar).at(1)),
+        const Rect.fromLTWH(16.0, 177.0 + 4.0, 40.0, 40.0),
+      );
+      expect(
+        tester.getRect(find.byType(Placeholder).at(1)),
+        const Rect.fromLTWH(800.0 - 24.0 - 16.0, 177.0 + 12.0, 24.0, 24.0),
+      );
 
       // NON-DENSE "ONE"-LINE
       await tester.pumpWidget(
@@ -2424,14 +2977,34 @@ void main() {
           ),
         ),
       );
-      await tester.pump(const Duration(seconds: 2)); // the text styles are animated when we change dense
+      await tester.pump(
+        const Duration(seconds: 2),
+      ); // the text styles are animated when we change dense
       //                                                                          LEFT                 TOP                   WIDTH  HEIGHT
-      expect(tester.getRect(find.byType(ListTile).at(0)),     const Rect.fromLTWH(                0.0,          0.0, 800.0, 216.0));
-      expect(tester.getRect(find.byType(CircleAvatar).at(0)), const Rect.fromLTWH(               16.0,         16.0,  40.0,  40.0));
-      expect(tester.getRect(find.byType(Placeholder).at(0)),  const Rect.fromLTWH(800.0 - 24.0 - 16.0,         16.0,  24.0,  24.0));
-      expect(tester.getRect(find.byType(ListTile).at(1)),     const Rect.fromLTWH(                0.0, 216.0       , 800.0,  56.0));
-      expect(tester.getRect(find.byType(CircleAvatar).at(1)), const Rect.fromLTWH(               16.0, 216.0 +  8.0,  40.0,  40.0));
-      expect(tester.getRect(find.byType(Placeholder).at(1)),  const Rect.fromLTWH(800.0 - 24.0 - 16.0, 216.0 + 16.0,  24.0,  24.0));
+      expect(
+        tester.getRect(find.byType(ListTile).at(0)),
+        const Rect.fromLTWH(0.0, 0.0, 800.0, 216.0),
+      );
+      expect(
+        tester.getRect(find.byType(CircleAvatar).at(0)),
+        const Rect.fromLTWH(16.0, 16.0, 40.0, 40.0),
+      );
+      expect(
+        tester.getRect(find.byType(Placeholder).at(0)),
+        const Rect.fromLTWH(800.0 - 24.0 - 16.0, 16.0, 24.0, 24.0),
+      );
+      expect(
+        tester.getRect(find.byType(ListTile).at(1)),
+        const Rect.fromLTWH(0.0, 216.0, 800.0, 56.0),
+      );
+      expect(
+        tester.getRect(find.byType(CircleAvatar).at(1)),
+        const Rect.fromLTWH(16.0, 216.0 + 8.0, 40.0, 40.0),
+      );
+      expect(
+        tester.getRect(find.byType(Placeholder).at(1)),
+        const Rect.fromLTWH(800.0 - 24.0 - 16.0, 216.0 + 16.0, 24.0, 24.0),
+      );
 
       // DENSE "TWO"-LINE
       await tester.pumpWidget(
@@ -2460,12 +3033,30 @@ void main() {
         ),
       );
       //                                                                          LEFT                 TOP          WIDTH  HEIGHT
-      expect(tester.getRect(find.byType(ListTile).at(0)),     const Rect.fromLTWH(                0.0,          0.0, 800.0, 180.0));
-      expect(tester.getRect(find.byType(CircleAvatar).at(0)), const Rect.fromLTWH(               16.0,         16.0,  40.0,  40.0));
-      expect(tester.getRect(find.byType(Placeholder).at(0)),  const Rect.fromLTWH(800.0 - 24.0 - 16.0,         16.0,  24.0,  24.0));
-      expect(tester.getRect(find.byType(ListTile).at(1)),     const Rect.fromLTWH(                0.0, 180.0,        800.0,  64.0));
-      expect(tester.getRect(find.byType(CircleAvatar).at(1)), const Rect.fromLTWH(               16.0, 180.0 + 12.0,  40.0,  40.0));
-      expect(tester.getRect(find.byType(Placeholder).at(1)),  const Rect.fromLTWH(800.0 - 24.0 - 16.0, 180.0 + 20.0,  24.0,  24.0));
+      expect(
+        tester.getRect(find.byType(ListTile).at(0)),
+        const Rect.fromLTWH(0.0, 0.0, 800.0, 180.0),
+      );
+      expect(
+        tester.getRect(find.byType(CircleAvatar).at(0)),
+        const Rect.fromLTWH(16.0, 16.0, 40.0, 40.0),
+      );
+      expect(
+        tester.getRect(find.byType(Placeholder).at(0)),
+        const Rect.fromLTWH(800.0 - 24.0 - 16.0, 16.0, 24.0, 24.0),
+      );
+      expect(
+        tester.getRect(find.byType(ListTile).at(1)),
+        const Rect.fromLTWH(0.0, 180.0, 800.0, 64.0),
+      );
+      expect(
+        tester.getRect(find.byType(CircleAvatar).at(1)),
+        const Rect.fromLTWH(16.0, 180.0 + 12.0, 40.0, 40.0),
+      );
+      expect(
+        tester.getRect(find.byType(Placeholder).at(1)),
+        const Rect.fromLTWH(800.0 - 24.0 - 16.0, 180.0 + 20.0, 24.0, 24.0),
+      );
 
       // NON-DENSE "TWO"-LINE
       await tester.pumpWidget(
@@ -2492,12 +3083,30 @@ void main() {
         ),
       );
       //                                                                          LEFT                 TOP          WIDTH  HEIGHT
-      expect(tester.getRect(find.byType(ListTile).at(0)),     const Rect.fromLTWH(                0.0,          0.0, 800.0, 180.0));
-      expect(tester.getRect(find.byType(CircleAvatar).at(0)), const Rect.fromLTWH(               16.0,         16.0,  40.0,  40.0));
-      expect(tester.getRect(find.byType(Placeholder).at(0)),  const Rect.fromLTWH(800.0 - 24.0 - 16.0,         16.0,  24.0,  24.0));
-      expect(tester.getRect(find.byType(ListTile).at(1)),     const Rect.fromLTWH(                0.0, 180.0,        800.0,  72.0));
-      expect(tester.getRect(find.byType(CircleAvatar).at(1)), const Rect.fromLTWH(               16.0, 180.0 + 16.0,  40.0,  40.0));
-      expect(tester.getRect(find.byType(Placeholder).at(1)),  const Rect.fromLTWH(800.0 - 24.0 - 16.0, 180.0 + 24.0,  24.0,  24.0));
+      expect(
+        tester.getRect(find.byType(ListTile).at(0)),
+        const Rect.fromLTWH(0.0, 0.0, 800.0, 180.0),
+      );
+      expect(
+        tester.getRect(find.byType(CircleAvatar).at(0)),
+        const Rect.fromLTWH(16.0, 16.0, 40.0, 40.0),
+      );
+      expect(
+        tester.getRect(find.byType(Placeholder).at(0)),
+        const Rect.fromLTWH(800.0 - 24.0 - 16.0, 16.0, 24.0, 24.0),
+      );
+      expect(
+        tester.getRect(find.byType(ListTile).at(1)),
+        const Rect.fromLTWH(0.0, 180.0, 800.0, 72.0),
+      );
+      expect(
+        tester.getRect(find.byType(CircleAvatar).at(1)),
+        const Rect.fromLTWH(16.0, 180.0 + 16.0, 40.0, 40.0),
+      );
+      expect(
+        tester.getRect(find.byType(Placeholder).at(1)),
+        const Rect.fromLTWH(800.0 - 24.0 - 16.0, 180.0 + 24.0, 24.0, 24.0),
+      );
 
       // DENSE "THREE"-LINE
       await tester.pumpWidget(
@@ -2528,12 +3137,30 @@ void main() {
         ),
       );
       //                                                                          LEFT                 TOP          WIDTH  HEIGHT
-      expect(tester.getRect(find.byType(ListTile).at(0)),     const Rect.fromLTWH(                0.0,          0.0, 800.0, 180.0));
-      expect(tester.getRect(find.byType(CircleAvatar).at(0)), const Rect.fromLTWH(               16.0,         16.0,  40.0,  40.0));
-      expect(tester.getRect(find.byType(Placeholder).at(0)),  const Rect.fromLTWH(800.0 - 24.0 - 16.0,         16.0,  24.0,  24.0));
-      expect(tester.getRect(find.byType(ListTile).at(1)),     const Rect.fromLTWH(                0.0, 180.0,        800.0,  76.0));
-      expect(tester.getRect(find.byType(CircleAvatar).at(1)), const Rect.fromLTWH(               16.0, 180.0 + 16.0,  40.0,  40.0));
-      expect(tester.getRect(find.byType(Placeholder).at(1)),  const Rect.fromLTWH(800.0 - 24.0 - 16.0, 180.0 + 16.0,  24.0,  24.0));
+      expect(
+        tester.getRect(find.byType(ListTile).at(0)),
+        const Rect.fromLTWH(0.0, 0.0, 800.0, 180.0),
+      );
+      expect(
+        tester.getRect(find.byType(CircleAvatar).at(0)),
+        const Rect.fromLTWH(16.0, 16.0, 40.0, 40.0),
+      );
+      expect(
+        tester.getRect(find.byType(Placeholder).at(0)),
+        const Rect.fromLTWH(800.0 - 24.0 - 16.0, 16.0, 24.0, 24.0),
+      );
+      expect(
+        tester.getRect(find.byType(ListTile).at(1)),
+        const Rect.fromLTWH(0.0, 180.0, 800.0, 76.0),
+      );
+      expect(
+        tester.getRect(find.byType(CircleAvatar).at(1)),
+        const Rect.fromLTWH(16.0, 180.0 + 16.0, 40.0, 40.0),
+      );
+      expect(
+        tester.getRect(find.byType(Placeholder).at(1)),
+        const Rect.fromLTWH(800.0 - 24.0 - 16.0, 180.0 + 16.0, 24.0, 24.0),
+      );
 
       // NON-DENSE THREE-LINE
       await tester.pumpWidget(
@@ -2562,12 +3189,30 @@ void main() {
         ),
       );
       //                                                                          LEFT                 TOP          WIDTH  HEIGHT
-      expect(tester.getRect(find.byType(ListTile).at(0)),     const Rect.fromLTWH(                0.0,          0.0, 800.0, 180.0));
-      expect(tester.getRect(find.byType(CircleAvatar).at(0)), const Rect.fromLTWH(               16.0,         16.0,  40.0,  40.0));
-      expect(tester.getRect(find.byType(Placeholder).at(0)),  const Rect.fromLTWH(800.0 - 24.0 - 16.0,         16.0,  24.0,  24.0));
-      expect(tester.getRect(find.byType(ListTile).at(1)),     const Rect.fromLTWH(                0.0, 180.0,        800.0,  88.0));
-      expect(tester.getRect(find.byType(CircleAvatar).at(1)), const Rect.fromLTWH(               16.0, 180.0 + 16.0,  40.0,  40.0));
-      expect(tester.getRect(find.byType(Placeholder).at(1)),  const Rect.fromLTWH(800.0 - 24.0 - 16.0, 180.0 + 16.0,  24.0,  24.0));
+      expect(
+        tester.getRect(find.byType(ListTile).at(0)),
+        const Rect.fromLTWH(0.0, 0.0, 800.0, 180.0),
+      );
+      expect(
+        tester.getRect(find.byType(CircleAvatar).at(0)),
+        const Rect.fromLTWH(16.0, 16.0, 40.0, 40.0),
+      );
+      expect(
+        tester.getRect(find.byType(Placeholder).at(0)),
+        const Rect.fromLTWH(800.0 - 24.0 - 16.0, 16.0, 24.0, 24.0),
+      );
+      expect(
+        tester.getRect(find.byType(ListTile).at(1)),
+        const Rect.fromLTWH(0.0, 180.0, 800.0, 88.0),
+      );
+      expect(
+        tester.getRect(find.byType(CircleAvatar).at(1)),
+        const Rect.fromLTWH(16.0, 180.0 + 16.0, 40.0, 40.0),
+      );
+      expect(
+        tester.getRect(find.byType(Placeholder).at(1)),
+        const Rect.fromLTWH(800.0 - 24.0 - 16.0, 180.0 + 16.0, 24.0, 24.0),
+      );
 
       // "ONE-LINE" with Small Leading Widget
       await tester.pumpWidget(
@@ -2577,12 +3222,12 @@ void main() {
             child: ListView(
               children: const <Widget>[
                 ListTile(
-                  leading: SizedBox(height:12.0, width:24.0, child: Placeholder()),
+                  leading: SizedBox(height: 12.0, width: 24.0, child: Placeholder()),
                   trailing: SizedBox(height: 24.0, width: 24.0, child: Placeholder()),
                   title: Text('A\nB\nC\nD\nE\nF\nG\nH\nI\nJ\nK\nL\nM'),
                 ),
                 ListTile(
-                  leading: SizedBox(height:12.0, width:24.0, child: Placeholder()),
+                  leading: SizedBox(height: 12.0, width: 24.0, child: Placeholder()),
                   trailing: SizedBox(height: 24.0, width: 24.0, child: Placeholder()),
                   title: Text('A'),
                 ),
@@ -2591,17 +3236,39 @@ void main() {
           ),
         ),
       );
-      await tester.pump(const Duration(seconds: 2)); // the text styles are animated when we change dense
+      await tester.pump(
+        const Duration(seconds: 2),
+      ); // the text styles are animated when we change dense
       //                                                                          LEFT                 TOP           WIDTH  HEIGHT
-      expect(tester.getRect(find.byType(ListTile).at(0)),     const Rect.fromLTWH(                0.0,          0.0, 800.0, 216.0));
-      expect(tester.getRect(find.byType(Placeholder).at(0)),  const Rect.fromLTWH(               16.0,         16.0,  24.0,  12.0));
-      expect(tester.getRect(find.byType(Placeholder).at(1)),  const Rect.fromLTWH(800.0 - 24.0 - 16.0,         16.0,  24.0,  24.0));
-      expect(tester.getRect(find.byType(ListTile).at(1)),     const Rect.fromLTWH(                0.0, 216.0       , 800.0,  56.0));
-      expect(tester.getRect(find.byType(Placeholder).at(2)),  const Rect.fromLTWH(               16.0, 216.0 + 16.0,  24.0,  12.0));
-      expect(tester.getRect(find.byType(Placeholder).at(3)),  const Rect.fromLTWH(800.0 - 24.0 - 16.0, 216.0 + 16.0,  24.0,  24.0));
+      expect(
+        tester.getRect(find.byType(ListTile).at(0)),
+        const Rect.fromLTWH(0.0, 0.0, 800.0, 216.0),
+      );
+      expect(
+        tester.getRect(find.byType(Placeholder).at(0)),
+        const Rect.fromLTWH(16.0, 16.0, 24.0, 12.0),
+      );
+      expect(
+        tester.getRect(find.byType(Placeholder).at(1)),
+        const Rect.fromLTWH(800.0 - 24.0 - 16.0, 16.0, 24.0, 24.0),
+      );
+      expect(
+        tester.getRect(find.byType(ListTile).at(1)),
+        const Rect.fromLTWH(0.0, 216.0, 800.0, 56.0),
+      );
+      expect(
+        tester.getRect(find.byType(Placeholder).at(2)),
+        const Rect.fromLTWH(16.0, 216.0 + 16.0, 24.0, 12.0),
+      );
+      expect(
+        tester.getRect(find.byType(Placeholder).at(3)),
+        const Rect.fromLTWH(800.0 - 24.0 - 16.0, 216.0 + 16.0, 24.0, 24.0),
+      );
     });
 
-    testWidgets('ListTile leading icon height does not exceed ListTile height', (WidgetTester tester) async {
+    testWidgets('ListTile leading icon height does not exceed ListTile height', (
+      WidgetTester tester,
+    ) async {
       // regression test for https://github.com/flutter/flutter/issues/28765
       const SizedBox oversizedWidget = SizedBox(height: 80.0, width: 24.0, child: Placeholder());
 
@@ -2612,24 +3279,22 @@ void main() {
           home: Material(
             child: ListView(
               children: const <Widget>[
-                ListTile(
-                  leading: oversizedWidget,
-                  title: Text('A'),
-                  dense: true,
-                ),
-                ListTile(
-                  leading: oversizedWidget,
-                  title: Text('B'),
-                  dense: true,
-                ),
+                ListTile(leading: oversizedWidget, title: Text('A'), dense: true),
+                ListTile(leading: oversizedWidget, title: Text('B'), dense: true),
               ],
             ),
           ),
         ),
       );
 
-      expect(tester.getRect(find.byType(Placeholder).at(0)), const Rect.fromLTWH(16.0,  0.0, 24.0, 48.0));
-      expect(tester.getRect(find.byType(Placeholder).at(1)), const Rect.fromLTWH(16.0, 48.0, 24.0, 48.0));
+      expect(
+        tester.getRect(find.byType(Placeholder).at(0)),
+        const Rect.fromLTWH(16.0, 0.0, 24.0, 48.0),
+      );
+      expect(
+        tester.getRect(find.byType(Placeholder).at(1)),
+        const Rect.fromLTWH(16.0, 48.0, 24.0, 48.0),
+      );
 
       // Non-dense One line
       await tester.pumpWidget(
@@ -2638,24 +3303,22 @@ void main() {
           home: Material(
             child: ListView(
               children: const <Widget>[
-                ListTile(
-                  leading: oversizedWidget,
-                  title: Text('A'),
-                  dense: false,
-                ),
-                ListTile(
-                  leading: oversizedWidget,
-                  title: Text('B'),
-                  dense: false,
-                ),
+                ListTile(leading: oversizedWidget, title: Text('A'), dense: false),
+                ListTile(leading: oversizedWidget, title: Text('B'), dense: false),
               ],
             ),
           ),
         ),
       );
 
-      expect(tester.getRect(find.byType(Placeholder).at(0)), const Rect.fromLTWH(16.0,  0.0, 24.0, 56.0));
-      expect(tester.getRect(find.byType(Placeholder).at(1)), const Rect.fromLTWH(16.0, 56.0, 24.0, 56.0));
+      expect(
+        tester.getRect(find.byType(Placeholder).at(0)),
+        const Rect.fromLTWH(16.0, 0.0, 24.0, 56.0),
+      );
+      expect(
+        tester.getRect(find.byType(Placeholder).at(1)),
+        const Rect.fromLTWH(16.0, 56.0, 24.0, 56.0),
+      );
 
       // Dense Two line
       await tester.pumpWidget(
@@ -2682,8 +3345,14 @@ void main() {
         ),
       );
 
-      expect(tester.getRect(find.byType(Placeholder).at(0)), const Rect.fromLTWH(16.0,        8.0, 24.0, 48.0));
-      expect(tester.getRect(find.byType(Placeholder).at(1)), const Rect.fromLTWH(16.0, 64.0 + 8.0, 24.0, 48.0));
+      expect(
+        tester.getRect(find.byType(Placeholder).at(0)),
+        const Rect.fromLTWH(16.0, 8.0, 24.0, 48.0),
+      );
+      expect(
+        tester.getRect(find.byType(Placeholder).at(1)),
+        const Rect.fromLTWH(16.0, 64.0 + 8.0, 24.0, 48.0),
+      );
 
       // Non-dense Two line
       await tester.pumpWidget(
@@ -2710,8 +3379,14 @@ void main() {
         ),
       );
 
-      expect(tester.getRect(find.byType(Placeholder).at(0)), const Rect.fromLTWH(16.0,        8.0, 24.0, 56.0));
-      expect(tester.getRect(find.byType(Placeholder).at(1)), const Rect.fromLTWH(16.0, 72.0 + 8.0, 24.0, 56.0));
+      expect(
+        tester.getRect(find.byType(Placeholder).at(0)),
+        const Rect.fromLTWH(16.0, 8.0, 24.0, 56.0),
+      );
+      expect(
+        tester.getRect(find.byType(Placeholder).at(1)),
+        const Rect.fromLTWH(16.0, 72.0 + 8.0, 24.0, 56.0),
+      );
 
       // Dense Three line
       await tester.pumpWidget(
@@ -2724,14 +3399,14 @@ void main() {
                   leading: oversizedWidget,
                   title: Text('A'),
                   subtitle: Text('A'),
-                  isThreeLine:  true,
+                  isThreeLine: true,
                   dense: true,
                 ),
                 ListTile(
                   leading: oversizedWidget,
                   title: Text('B'),
                   subtitle: Text('B'),
-                  isThreeLine:  true,
+                  isThreeLine: true,
                   dense: true,
                 ),
               ],
@@ -2740,8 +3415,14 @@ void main() {
         ),
       );
 
-      expect(tester.getRect(find.byType(Placeholder).at(0)), const Rect.fromLTWH(16.0,        16.0, 24.0, 48.0));
-      expect(tester.getRect(find.byType(Placeholder).at(1)), const Rect.fromLTWH(16.0, 76.0 + 16.0, 24.0, 48.0));
+      expect(
+        tester.getRect(find.byType(Placeholder).at(0)),
+        const Rect.fromLTWH(16.0, 16.0, 24.0, 48.0),
+      );
+      expect(
+        tester.getRect(find.byType(Placeholder).at(1)),
+        const Rect.fromLTWH(16.0, 76.0 + 16.0, 24.0, 48.0),
+      );
 
       // Non-dense Three line
       await tester.pumpWidget(
@@ -2754,14 +3435,14 @@ void main() {
                   leading: oversizedWidget,
                   title: Text('A'),
                   subtitle: Text('A'),
-                  isThreeLine:  true,
+                  isThreeLine: true,
                   dense: false,
                 ),
                 ListTile(
                   leading: oversizedWidget,
                   title: Text('B'),
                   subtitle: Text('B'),
-                  isThreeLine:  true,
+                  isThreeLine: true,
                   dense: false,
                 ),
               ],
@@ -2770,11 +3451,19 @@ void main() {
         ),
       );
 
-      expect(tester.getRect(find.byType(Placeholder).at(0)), const Rect.fromLTWH(16.0,        16.0, 24.0, 56.0));
-      expect(tester.getRect(find.byType(Placeholder).at(1)), const Rect.fromLTWH(16.0, 88.0 + 16.0, 24.0, 56.0));
+      expect(
+        tester.getRect(find.byType(Placeholder).at(0)),
+        const Rect.fromLTWH(16.0, 16.0, 24.0, 56.0),
+      );
+      expect(
+        tester.getRect(find.byType(Placeholder).at(1)),
+        const Rect.fromLTWH(16.0, 88.0 + 16.0, 24.0, 56.0),
+      );
     });
 
-    testWidgets('ListTile trailing icon height does not exceed ListTile height', (WidgetTester tester) async {
+    testWidgets('ListTile trailing icon height does not exceed ListTile height', (
+      WidgetTester tester,
+    ) async {
       // regression test for https://github.com/flutter/flutter/issues/28765
       const SizedBox oversizedWidget = SizedBox(height: 80.0, width: 24.0, child: Placeholder());
 
@@ -2785,24 +3474,22 @@ void main() {
           home: Material(
             child: ListView(
               children: const <Widget>[
-                ListTile(
-                  trailing: oversizedWidget,
-                  title: Text('A'),
-                  dense: true,
-                ),
-                ListTile(
-                  trailing: oversizedWidget,
-                  title: Text('B'),
-                  dense: true,
-                ),
+                ListTile(trailing: oversizedWidget, title: Text('A'), dense: true),
+                ListTile(trailing: oversizedWidget, title: Text('B'), dense: true),
               ],
             ),
           ),
         ),
       );
 
-      expect(tester.getRect(find.byType(Placeholder).at(0)), const Rect.fromLTWH(800.0 - 16.0 - 24.0,    0, 24.0, 48.0));
-      expect(tester.getRect(find.byType(Placeholder).at(1)), const Rect.fromLTWH(800.0 - 16.0 - 24.0, 48.0, 24.0, 48.0));
+      expect(
+        tester.getRect(find.byType(Placeholder).at(0)),
+        const Rect.fromLTWH(800.0 - 16.0 - 24.0, 0, 24.0, 48.0),
+      );
+      expect(
+        tester.getRect(find.byType(Placeholder).at(1)),
+        const Rect.fromLTWH(800.0 - 16.0 - 24.0, 48.0, 24.0, 48.0),
+      );
 
       // Non-dense One line
       await tester.pumpWidget(
@@ -2811,24 +3498,22 @@ void main() {
           home: Material(
             child: ListView(
               children: const <Widget>[
-                ListTile(
-                  trailing: oversizedWidget,
-                  title: Text('A'),
-                  dense: false,
-                ),
-                ListTile(
-                  trailing: oversizedWidget,
-                  title: Text('B'),
-                  dense: false,
-                ),
+                ListTile(trailing: oversizedWidget, title: Text('A'), dense: false),
+                ListTile(trailing: oversizedWidget, title: Text('B'), dense: false),
               ],
             ),
           ),
         ),
       );
 
-      expect(tester.getRect(find.byType(Placeholder).at(0)), const Rect.fromLTWH(800.0 - 16.0 - 24.0,  0.0, 24.0, 56.0));
-      expect(tester.getRect(find.byType(Placeholder).at(1)), const Rect.fromLTWH(800.0 - 16.0 - 24.0, 56.0, 24.0, 56.0));
+      expect(
+        tester.getRect(find.byType(Placeholder).at(0)),
+        const Rect.fromLTWH(800.0 - 16.0 - 24.0, 0.0, 24.0, 56.0),
+      );
+      expect(
+        tester.getRect(find.byType(Placeholder).at(1)),
+        const Rect.fromLTWH(800.0 - 16.0 - 24.0, 56.0, 24.0, 56.0),
+      );
 
       // Dense Two line
       await tester.pumpWidget(
@@ -2855,8 +3540,14 @@ void main() {
         ),
       );
 
-      expect(tester.getRect(find.byType(Placeholder).at(0)), const Rect.fromLTWH(800.0 - 16.0 - 24.0,        8.0, 24.0, 48.0));
-      expect(tester.getRect(find.byType(Placeholder).at(1)), const Rect.fromLTWH(800.0 - 16.0 - 24.0, 64.0 + 8.0, 24.0, 48.0));
+      expect(
+        tester.getRect(find.byType(Placeholder).at(0)),
+        const Rect.fromLTWH(800.0 - 16.0 - 24.0, 8.0, 24.0, 48.0),
+      );
+      expect(
+        tester.getRect(find.byType(Placeholder).at(1)),
+        const Rect.fromLTWH(800.0 - 16.0 - 24.0, 64.0 + 8.0, 24.0, 48.0),
+      );
 
       // Non-dense Two line
       await tester.pumpWidget(
@@ -2883,8 +3574,14 @@ void main() {
         ),
       );
 
-      expect(tester.getRect(find.byType(Placeholder).at(0)), const Rect.fromLTWH(800.0 - 16.0 - 24.0,        8.0, 24.0, 56.0));
-      expect(tester.getRect(find.byType(Placeholder).at(1)), const Rect.fromLTWH(800.0 - 16.0 - 24.0, 72.0 + 8.0, 24.0, 56.0));
+      expect(
+        tester.getRect(find.byType(Placeholder).at(0)),
+        const Rect.fromLTWH(800.0 - 16.0 - 24.0, 8.0, 24.0, 56.0),
+      );
+      expect(
+        tester.getRect(find.byType(Placeholder).at(1)),
+        const Rect.fromLTWH(800.0 - 16.0 - 24.0, 72.0 + 8.0, 24.0, 56.0),
+      );
 
       // Dense Three line
       await tester.pumpWidget(
@@ -2897,14 +3594,14 @@ void main() {
                   trailing: oversizedWidget,
                   title: Text('A'),
                   subtitle: Text('A'),
-                  isThreeLine:  true,
+                  isThreeLine: true,
                   dense: true,
                 ),
                 ListTile(
                   trailing: oversizedWidget,
                   title: Text('B'),
                   subtitle: Text('B'),
-                  isThreeLine:  true,
+                  isThreeLine: true,
                   dense: true,
                 ),
               ],
@@ -2913,8 +3610,14 @@ void main() {
         ),
       );
 
-      expect(tester.getRect(find.byType(Placeholder).at(0)), const Rect.fromLTWH(800.0 - 16.0 - 24.0,        16.0, 24.0, 48.0));
-      expect(tester.getRect(find.byType(Placeholder).at(1)), const Rect.fromLTWH(800.0 - 16.0 - 24.0, 76.0 + 16.0, 24.0, 48.0));
+      expect(
+        tester.getRect(find.byType(Placeholder).at(0)),
+        const Rect.fromLTWH(800.0 - 16.0 - 24.0, 16.0, 24.0, 48.0),
+      );
+      expect(
+        tester.getRect(find.byType(Placeholder).at(1)),
+        const Rect.fromLTWH(800.0 - 16.0 - 24.0, 76.0 + 16.0, 24.0, 48.0),
+      );
 
       // Non-dense Three line
       await tester.pumpWidget(
@@ -2927,14 +3630,14 @@ void main() {
                   trailing: oversizedWidget,
                   title: Text('A'),
                   subtitle: Text('A'),
-                  isThreeLine:  true,
+                  isThreeLine: true,
                   dense: false,
                 ),
                 ListTile(
                   trailing: oversizedWidget,
                   title: Text('B'),
                   subtitle: Text('B'),
-                  isThreeLine:  true,
+                  isThreeLine: true,
                   dense: false,
                 ),
               ],
@@ -2943,8 +3646,14 @@ void main() {
         ),
       );
 
-      expect(tester.getRect(find.byType(Placeholder).at(0)), const Rect.fromLTWH(800.0 - 16.0 - 24.0,        16.0, 24.0, 56.0));
-      expect(tester.getRect(find.byType(Placeholder).at(1)), const Rect.fromLTWH(800.0 - 16.0 - 24.0, 88.0 + 16.0, 24.0, 56.0));
+      expect(
+        tester.getRect(find.byType(Placeholder).at(0)),
+        const Rect.fromLTWH(800.0 - 16.0 - 24.0, 16.0, 24.0, 56.0),
+      );
+      expect(
+        tester.getRect(find.byType(Placeholder).at(1)),
+        const Rect.fromLTWH(800.0 - 16.0 - 24.0, 88.0 + 16.0, 24.0, 56.0),
+      );
     });
 
     testWidgets('ListTile wide leading Widget', (WidgetTester tester) async {
@@ -3013,7 +3722,11 @@ void main() {
     });
 
     testWidgets('ListTile horizontalTitleGap = 0.0', (WidgetTester tester) async {
-      Widget buildFrame(TextDirection textDirection, { double? themeHorizontalTitleGap, double? widgetHorizontalTitleGap }) {
+      Widget buildFrame(
+        TextDirection textDirection, {
+        double? themeHorizontalTitleGap,
+        double? widgetHorizontalTitleGap,
+      }) {
         return MaterialApp(
           theme: ThemeData(useMaterial3: false),
           home: Directionality(
@@ -3047,7 +3760,9 @@ void main() {
       expect(tester.getSize(find.byType(ListTile)), const Size(800.0, 56.0));
       expect(left('title'), 56.0);
 
-      await tester.pumpWidget(buildFrame(TextDirection.ltr, themeHorizontalTitleGap: 10, widgetHorizontalTitleGap: 0));
+      await tester.pumpWidget(
+        buildFrame(TextDirection.ltr, themeHorizontalTitleGap: 10, widgetHorizontalTitleGap: 0),
+      );
       expect(tester.getSize(find.byType(ListTile)), const Size(800.0, 56.0));
       expect(left('title'), 56.0);
 
@@ -3059,12 +3774,16 @@ void main() {
       expect(tester.getSize(find.byType(ListTile)), const Size(800.0, 56.0));
       expect(right('title'), 744.0);
 
-      await tester.pumpWidget(buildFrame(TextDirection.rtl, themeHorizontalTitleGap: 10, widgetHorizontalTitleGap: 0));
+      await tester.pumpWidget(
+        buildFrame(TextDirection.rtl, themeHorizontalTitleGap: 10, widgetHorizontalTitleGap: 0),
+      );
       expect(tester.getSize(find.byType(ListTile)), const Size(800.0, 56.0));
       expect(right('title'), 744.0);
     });
 
-    testWidgets('ListTile horizontalTitleGap = (default) && ListTile minLeadingWidth = (default)', (WidgetTester tester) async {
+    testWidgets('ListTile horizontalTitleGap = (default) && ListTile minLeadingWidth = (default)', (
+      WidgetTester tester,
+    ) async {
       Widget buildFrame(TextDirection textDirection) {
         return MaterialApp(
           theme: ThemeData(useMaterial3: false),
@@ -3101,10 +3820,7 @@ void main() {
     });
 
     testWidgets('ListTile horizontalTitleGap with visualDensity', (WidgetTester tester) async {
-      Widget buildFrame({
-        double? horizontalTitleGap,
-        VisualDensity? visualDensity,
-      }) {
+      Widget buildFrame({double? horizontalTitleGap, VisualDensity? visualDensity}) {
         return MaterialApp(
           theme: ThemeData(useMaterial3: false),
           home: Directionality(
@@ -3127,26 +3843,34 @@ void main() {
 
       double left(String text) => tester.getTopLeft(find.text(text)).dx;
 
-      await tester.pumpWidget(buildFrame(
-        horizontalTitleGap: 10.0,
-        visualDensity: const VisualDensity(horizontal: VisualDensity.minimumDensity),
-      ));
+      await tester.pumpWidget(
+        buildFrame(
+          horizontalTitleGap: 10.0,
+          visualDensity: const VisualDensity(horizontal: VisualDensity.minimumDensity),
+        ),
+      );
       expect(tester.getSize(find.byType(ListTile)), const Size(800.0, 56.0));
       expect(left('title'), 58.0);
 
       // Pump another frame of the same widget to ensure the underlying render
       // object did not cache the original horizontalTitleGap calculation based on the
       // visualDensity
-      await tester.pumpWidget(buildFrame(
-        horizontalTitleGap: 10.0,
-        visualDensity: const VisualDensity(horizontal: VisualDensity.minimumDensity),
-      ));
+      await tester.pumpWidget(
+        buildFrame(
+          horizontalTitleGap: 10.0,
+          visualDensity: const VisualDensity(horizontal: VisualDensity.minimumDensity),
+        ),
+      );
       expect(tester.getSize(find.byType(ListTile)), const Size(800.0, 56.0));
       expect(left('title'), 58.0);
     });
 
     testWidgets('ListTile minVerticalPadding = 80.0', (WidgetTester tester) async {
-      Widget buildFrame(TextDirection textDirection, { double? themeMinVerticalPadding, double? widgetMinVerticalPadding }) {
+      Widget buildFrame(
+        TextDirection textDirection, {
+        double? themeMinVerticalPadding,
+        double? widgetMinVerticalPadding,
+      }) {
         return MaterialApp(
           theme: ThemeData(useMaterial3: false),
           home: Directionality(
@@ -3169,7 +3893,6 @@ void main() {
         );
       }
 
-
       await tester.pumpWidget(buildFrame(TextDirection.ltr, widgetMinVerticalPadding: 80));
       // 80 + 80 + 16(Title) = 176
       expect(tester.getSize(find.byType(ListTile)), const Size(800.0, 176.0));
@@ -3177,7 +3900,9 @@ void main() {
       await tester.pumpWidget(buildFrame(TextDirection.ltr, themeMinVerticalPadding: 80));
       expect(tester.getSize(find.byType(ListTile)), const Size(800.0, 176.0));
 
-      await tester.pumpWidget(buildFrame(TextDirection.ltr, themeMinVerticalPadding: 0, widgetMinVerticalPadding: 80));
+      await tester.pumpWidget(
+        buildFrame(TextDirection.ltr, themeMinVerticalPadding: 0, widgetMinVerticalPadding: 80),
+      );
       expect(tester.getSize(find.byType(ListTile)), const Size(800.0, 176.0));
 
       await tester.pumpWidget(buildFrame(TextDirection.rtl, widgetMinVerticalPadding: 80));
@@ -3187,7 +3912,9 @@ void main() {
       await tester.pumpWidget(buildFrame(TextDirection.rtl, themeMinVerticalPadding: 80));
       expect(tester.getSize(find.byType(ListTile)), const Size(800.0, 176.0));
 
-      await tester.pumpWidget(buildFrame(TextDirection.rtl, themeMinVerticalPadding: 0, widgetMinVerticalPadding: 80));
+      await tester.pumpWidget(
+        buildFrame(TextDirection.rtl, themeMinVerticalPadding: 0, widgetMinVerticalPadding: 80),
+      );
       expect(tester.getSize(find.byType(ListTile)), const Size(800.0, 176.0));
     });
 
@@ -3211,7 +3938,7 @@ void main() {
                     style: style,
                     leading: const TestText('leading'),
                     title: const TestText('title'),
-                    subtitle: const TestText('subtitle') ,
+                    subtitle: const TestText('subtitle'),
                     trailing: const TestText('trailing'),
                   );
                 },
@@ -3270,6 +3997,7 @@ void main() {
     });
 
     testWidgets('ListTile text color', (WidgetTester tester) async {
+      final ThemeData theme = ThemeData(useMaterial3: false);
       Widget buildFrame({
         bool dense = false,
         bool enabled = true,
@@ -3277,7 +4005,7 @@ void main() {
         ListTileStyle? style,
       }) {
         return MaterialApp(
-          theme: ThemeData(useMaterial3: false),
+          theme: theme,
           home: Material(
             child: Center(
               child: Builder(
@@ -3289,7 +4017,7 @@ void main() {
                     style: style,
                     leading: const TestText('leading'),
                     title: const TestText('title'),
-                    subtitle: const TestText('subtitle') ,
+                    subtitle: const TestText('subtitle'),
                     trailing: const TestText('trailing'),
                   );
                 },
@@ -3298,8 +4026,6 @@ void main() {
           ),
         );
       }
-
-      final ThemeData theme = ThemeData();
 
       // ListTile - ListTileStyle.list (default).
       await tester.pumpWidget(buildFrame());
@@ -3325,7 +4051,9 @@ void main() {
       expect(trailing.text.style!.color, theme.textTheme.bodyMedium!.color);
     });
 
-    testWidgets('selected, enabled ListTile default icon color, light and dark themes', (WidgetTester tester) async {
+    testWidgets('selected, enabled ListTile default icon color, light and dark themes', (
+      WidgetTester tester,
+    ) async {
       // Regression test for https://github.com/flutter/flutter/pull/77004
 
       const ColorScheme lightColorScheme = ColorScheme.light();
@@ -3335,10 +4063,11 @@ void main() {
       final Key subtitleKey = UniqueKey();
       final Key trailingKey = UniqueKey();
 
-      Widget buildFrame({ required Brightness brightness, required bool selected }) {
-        final ThemeData theme = brightness == Brightness.light
-          ? ThemeData.from(colorScheme: const ColorScheme.light(), useMaterial3: false)
-          : ThemeData.from(colorScheme: const ColorScheme.dark(), useMaterial3: false);
+      Widget buildFrame({required Brightness brightness, required bool selected}) {
+        final ThemeData theme =
+            brightness == Brightness.light
+                ? ThemeData.from(colorScheme: const ColorScheme.light(), useMaterial3: false)
+                : ThemeData.from(colorScheme: const ColorScheme.dark(), useMaterial3: false);
         return MaterialApp(
           theme: theme,
           home: Material(
@@ -3379,9 +4108,9 @@ void main() {
       // For this configuration, ListTile defers to the default IconTheme.
       // The default dark theme's IconTheme has color:white
       await tester.pumpWidget(buildFrame(brightness: Brightness.dark, selected: false));
-      expect(iconColor(leadingKey),  Colors.white);
-      expect(iconColor(titleKey),  Colors.white);
-      expect(iconColor(subtitleKey),  Colors.white);
+      expect(iconColor(leadingKey), Colors.white);
+      expect(iconColor(titleKey), Colors.white);
+      expect(iconColor(subtitleKey), Colors.white);
       expect(iconColor(trailingKey), Colors.white);
     });
 
@@ -3399,7 +4128,7 @@ void main() {
                   return ListTile(
                     selected: isSelected,
                     onTap: () {
-                      setState(()=> isSelected = !isSelected);
+                      setState(() => isSelected = !isSelected);
                     },
                     title: const Text('Title'),
                   );
@@ -3418,12 +4147,399 @@ void main() {
 
       expect(find.byType(Material), paints..rect(color: defaultColor));
     });
+
+    testWidgets('titleAlignment position with title widget', (WidgetTester tester) async {
+      final Key leadingKey = GlobalKey();
+      final Key trailingKey = GlobalKey();
+      const double leadingHeight = 24.0;
+      const double titleHeight = 50.0;
+      const double trailingHeight = 24.0;
+      const double minVerticalPadding = 10.0;
+      const double tileHeight = minVerticalPadding * 2 + titleHeight;
+
+      Widget buildFrame({ListTileTitleAlignment? titleAlignment}) {
+        return MaterialApp(
+          theme: ThemeData(useMaterial3: false),
+          home: Material(
+            child: Center(
+              child: ListTile(
+                titleAlignment: titleAlignment,
+                minVerticalPadding: minVerticalPadding,
+                leading: SizedBox(key: leadingKey, width: 24.0, height: leadingHeight),
+                title: const SizedBox(width: 20.0, height: titleHeight),
+                trailing: SizedBox(key: trailingKey, width: 24.0, height: trailingHeight),
+              ),
+            ),
+          ),
+        );
+      }
+
+      // If [ThemeData.useMaterial3] is false, the default title alignment is
+      // [ListTileTitleAlignment.titleHeight], If the tile height is less than
+      // 72.0 pixels, the leading is placed 16.0 pixels below the top of
+      // the title widget and the trailing is centered vertically in the tile.
+      await tester.pumpWidget(buildFrame());
+      Offset tileOffset = tester.getTopLeft(find.byType(ListTile));
+      Offset leadingOffset = tester.getTopLeft(find.byKey(leadingKey));
+      Offset trailingOffset = tester.getTopRight(find.byKey(trailingKey));
+
+      // Leading and trailing widgets are centered vertically in the tile.
+      const double titlePosition = 16.0;
+      const double centerPosition = (tileHeight / 2) - (leadingHeight / 2);
+      expect(leadingOffset.dy - tileOffset.dy, titlePosition);
+      expect(trailingOffset.dy - tileOffset.dy, centerPosition);
+
+      // Test [ListTileTitleAlignment.threeLine] alignment.
+      await tester.pumpWidget(buildFrame(titleAlignment: ListTileTitleAlignment.threeLine));
+      tileOffset = tester.getTopLeft(find.byType(ListTile));
+      leadingOffset = tester.getTopLeft(find.byKey(leadingKey));
+      trailingOffset = tester.getTopRight(find.byKey(trailingKey));
+
+      // Leading and trailing widgets are centered vertically in the tile,
+      // If the [ListTile.isThreeLine] property is false.
+      expect(leadingOffset.dy - tileOffset.dy, centerPosition);
+      expect(trailingOffset.dy - tileOffset.dy, centerPosition);
+
+      // Test [ListTileTitleAlignment.titleHeight] alignment.
+      await tester.pumpWidget(buildFrame(titleAlignment: ListTileTitleAlignment.titleHeight));
+      tileOffset = tester.getTopLeft(find.byType(ListTile));
+      leadingOffset = tester.getTopLeft(find.byKey(leadingKey));
+      trailingOffset = tester.getTopRight(find.byKey(trailingKey));
+
+      // If the tile height is less than 72.0 pixels, the leading is placed
+      // 16.0 pixels below the top of the tile widget, and the trailing is
+      // centered vertically in the tile.
+      expect(leadingOffset.dy - tileOffset.dy, titlePosition);
+      expect(trailingOffset.dy - tileOffset.dy, centerPosition);
+
+      // Test [ListTileTitleAlignment.top] alignment.
+      await tester.pumpWidget(buildFrame(titleAlignment: ListTileTitleAlignment.top));
+      tileOffset = tester.getTopLeft(find.byType(ListTile));
+      leadingOffset = tester.getTopLeft(find.byKey(leadingKey));
+      trailingOffset = tester.getTopRight(find.byKey(trailingKey));
+
+      // Leading and trailing widgets are placed minVerticalPadding below
+      // the top of the title widget.
+      const double topPosition = minVerticalPadding;
+      expect(leadingOffset.dy - tileOffset.dy, topPosition);
+      expect(trailingOffset.dy - tileOffset.dy, topPosition);
+
+      // Test [ListTileTitleAlignment.center] alignment.
+      await tester.pumpWidget(buildFrame(titleAlignment: ListTileTitleAlignment.center));
+      tileOffset = tester.getTopLeft(find.byType(ListTile));
+      leadingOffset = tester.getTopLeft(find.byKey(leadingKey));
+      trailingOffset = tester.getTopRight(find.byKey(trailingKey));
+
+      // Leading and trailing widgets are vertically centered in the tile.
+      expect(leadingOffset.dy - tileOffset.dy, centerPosition);
+      expect(trailingOffset.dy - tileOffset.dy, centerPosition);
+
+      // Test [ListTileTitleAlignment.bottom] alignment.
+      await tester.pumpWidget(buildFrame(titleAlignment: ListTileTitleAlignment.bottom));
+      tileOffset = tester.getTopLeft(find.byType(ListTile));
+      leadingOffset = tester.getTopLeft(find.byKey(leadingKey));
+      trailingOffset = tester.getTopRight(find.byKey(trailingKey));
+
+      // Leading and trailing widgets are placed minVerticalPadding above
+      // the bottom of the subtitle widget.
+      const double bottomPosition = tileHeight - minVerticalPadding - leadingHeight;
+      expect(leadingOffset.dy - tileOffset.dy, bottomPosition);
+      expect(trailingOffset.dy - tileOffset.dy, bottomPosition);
+    });
+
+    testWidgets('titleAlignment position with title and subtitle widgets', (
+      WidgetTester tester,
+    ) async {
+      final Key leadingKey = GlobalKey();
+      final Key trailingKey = GlobalKey();
+      const double leadingHeight = 24.0;
+      const double titleHeight = 50.0;
+      const double subtitleHeight = 50.0;
+      const double trailingHeight = 24.0;
+      const double minVerticalPadding = 10.0;
+      const double tileHeight = minVerticalPadding * 2 + titleHeight + subtitleHeight;
+
+      Widget buildFrame({ListTileTitleAlignment? titleAlignment}) {
+        return MaterialApp(
+          theme: ThemeData(useMaterial3: false),
+          home: Material(
+            child: Center(
+              child: ListTile(
+                titleAlignment: titleAlignment,
+                minVerticalPadding: minVerticalPadding,
+                leading: SizedBox(key: leadingKey, width: 24.0, height: leadingHeight),
+                title: const SizedBox(width: 20.0, height: titleHeight),
+                subtitle: const SizedBox(width: 20.0, height: subtitleHeight),
+                trailing: SizedBox(key: trailingKey, width: 24.0, height: trailingHeight),
+              ),
+            ),
+          ),
+        );
+      }
+
+      // If [ThemeData.useMaterial3] is false, the default title alignment is
+      // [ListTileTitleAlignment.titleHeight], which positions the leading and
+      // trailing widgets 16.0 pixels below the top of the tile widget.
+      await tester.pumpWidget(buildFrame());
+      Offset tileOffset = tester.getTopLeft(find.byType(ListTile));
+      Offset leadingOffset = tester.getTopLeft(find.byKey(leadingKey));
+      Offset trailingOffset = tester.getTopRight(find.byKey(trailingKey));
+
+      // Leading and trailing widgets are positioned 16.0 pixels below the
+      // top of the tile widget.
+      const double titlePosition = 16.0;
+      expect(leadingOffset.dy - tileOffset.dy, titlePosition);
+      expect(trailingOffset.dy - tileOffset.dy, titlePosition);
+
+      // Test [ListTileTitleAlignment.threeLine] alignment.
+      await tester.pumpWidget(buildFrame(titleAlignment: ListTileTitleAlignment.threeLine));
+      tileOffset = tester.getTopLeft(find.byType(ListTile));
+      leadingOffset = tester.getTopLeft(find.byKey(leadingKey));
+      trailingOffset = tester.getTopRight(find.byKey(trailingKey));
+
+      // Leading and trailing widgets are vertically centered in the tile,
+      // If the [ListTile.isThreeLine] property is false.
+      const double centerPosition = (tileHeight / 2) - (leadingHeight / 2);
+      expect(leadingOffset.dy - tileOffset.dy, centerPosition);
+      expect(trailingOffset.dy - tileOffset.dy, centerPosition);
+
+      // Test [ListTileTitleAlignment.titleHeight] alignment.
+      await tester.pumpWidget(buildFrame(titleAlignment: ListTileTitleAlignment.titleHeight));
+      tileOffset = tester.getTopLeft(find.byType(ListTile));
+      leadingOffset = tester.getTopLeft(find.byKey(leadingKey));
+      trailingOffset = tester.getTopRight(find.byKey(trailingKey));
+
+      // Leading and trailing widgets are positioned 16.0 pixels below the
+      // top of the tile widget.
+      expect(leadingOffset.dy - tileOffset.dy, titlePosition);
+      expect(trailingOffset.dy - tileOffset.dy, titlePosition);
+
+      // Test [ListTileTitleAlignment.top] alignment.
+      await tester.pumpWidget(buildFrame(titleAlignment: ListTileTitleAlignment.top));
+      tileOffset = tester.getTopLeft(find.byType(ListTile));
+      leadingOffset = tester.getTopLeft(find.byKey(leadingKey));
+      trailingOffset = tester.getTopRight(find.byKey(trailingKey));
+
+      // Leading and trailing widgets are placed minVerticalPadding below
+      // the top of the tile widget.
+      const double topPosition = minVerticalPadding;
+      expect(leadingOffset.dy - tileOffset.dy, topPosition);
+      expect(trailingOffset.dy - tileOffset.dy, topPosition);
+
+      // Test [ListTileTitleAlignment.center] alignment.
+      await tester.pumpWidget(buildFrame(titleAlignment: ListTileTitleAlignment.center));
+      tileOffset = tester.getTopLeft(find.byType(ListTile));
+      leadingOffset = tester.getTopLeft(find.byKey(leadingKey));
+      trailingOffset = tester.getTopRight(find.byKey(trailingKey));
+
+      // Leading and trailing widgets are vertically centered in the tile.
+      expect(leadingOffset.dy - tileOffset.dy, centerPosition);
+      expect(trailingOffset.dy - tileOffset.dy, centerPosition);
+
+      // Test [ListTileTitleAlignment.bottom] alignment.
+      await tester.pumpWidget(buildFrame(titleAlignment: ListTileTitleAlignment.bottom));
+      tileOffset = tester.getTopLeft(find.byType(ListTile));
+      leadingOffset = tester.getTopLeft(find.byKey(leadingKey));
+      trailingOffset = tester.getTopRight(find.byKey(trailingKey));
+
+      // Leading and trailing widgets are placed minVerticalPadding above
+      // the bottom of the subtitle widget.
+      const double bottomPosition = tileHeight - minVerticalPadding - leadingHeight;
+      expect(leadingOffset.dy - tileOffset.dy, bottomPosition);
+      expect(trailingOffset.dy - tileOffset.dy, bottomPosition);
+    });
+
+    testWidgets("ListTile.isThreeLine updates ListTileTitleAlignment.threeLine's alignment", (
+      WidgetTester tester,
+    ) async {
+      final Key leadingKey = GlobalKey();
+      final Key trailingKey = GlobalKey();
+      const double leadingHeight = 24.0;
+      const double titleHeight = 50.0;
+      const double subtitleHeight = 50.0;
+      const double trailingHeight = 24.0;
+      const double minVerticalPadding = 10.0;
+      const double tileHeight = minVerticalPadding * 2 + titleHeight + subtitleHeight;
+
+      Widget buildFrame({ListTileTitleAlignment? titleAlignment, bool isThreeLine = false}) {
+        return MaterialApp(
+          theme: ThemeData(useMaterial3: false),
+          home: Material(
+            child: Center(
+              child: ListTile(
+                titleAlignment: titleAlignment,
+                minVerticalPadding: minVerticalPadding,
+                leading: SizedBox(key: leadingKey, width: 24.0, height: leadingHeight),
+                title: const SizedBox(width: 20.0, height: titleHeight),
+                subtitle: const SizedBox(width: 20.0, height: subtitleHeight),
+                trailing: SizedBox(key: trailingKey, width: 24.0, height: trailingHeight),
+                isThreeLine: isThreeLine,
+              ),
+            ),
+          ),
+        );
+      }
+
+      // Set title alignment to threeLine.
+      await tester.pumpWidget(buildFrame(titleAlignment: ListTileTitleAlignment.threeLine));
+      Offset tileOffset = tester.getTopLeft(find.byType(ListTile));
+      Offset leadingOffset = tester.getTopLeft(find.byKey(leadingKey));
+      Offset trailingOffset = tester.getTopRight(find.byKey(trailingKey));
+
+      // If title alignment is threeLine and [ListTile.isThreeLine] is false,
+      // leading and trailing widgets are centered vertically in the tile.
+      const double leadingTrailingPosition = (tileHeight / 2) - (leadingHeight / 2);
+      expect(leadingOffset.dy - tileOffset.dy, leadingTrailingPosition);
+      expect(trailingOffset.dy - tileOffset.dy, leadingTrailingPosition);
+
+      // Set [ListTile.isThreeLine] to true to update the alignment.
+      await tester.pumpWidget(
+        buildFrame(titleAlignment: ListTileTitleAlignment.threeLine, isThreeLine: true),
+      );
+      tileOffset = tester.getTopLeft(find.byType(ListTile));
+      leadingOffset = tester.getTopLeft(find.byKey(leadingKey));
+      trailingOffset = tester.getTopRight(find.byKey(trailingKey));
+
+      // The leading and trailing widgets are placed minVerticalPadding
+      // to the top of the tile widget.
+      expect(leadingOffset.dy - tileOffset.dy, minVerticalPadding);
+      expect(trailingOffset.dy - tileOffset.dy, minVerticalPadding);
+    });
+  });
+
+  // Regression test for https://github.com/flutter/flutter/issues/165453
+  testWidgets('ListTile isThreeLine', (WidgetTester tester) async {
+    const double height = 300;
+    const double avatarTop = 130.0;
+    const double placeholderTop = 138.0;
+
+    Widget buildFrame({bool? themeDataIsThreeLine, bool? themeIsThreeLine, bool? isThreeLine}) {
+      return MaterialApp(
+        key: UniqueKey(),
+        theme:
+            themeDataIsThreeLine != null
+                ? ThemeData(listTileTheme: ListTileThemeData(isThreeLine: themeDataIsThreeLine))
+                : null,
+        home: Material(
+          child: ListTileTheme(
+            data:
+                themeIsThreeLine != null ? ListTileThemeData(isThreeLine: themeIsThreeLine) : null,
+            child: ListView(
+              children: <Widget>[
+                ListTile(
+                  isThreeLine: isThreeLine,
+                  leading: const CircleAvatar(),
+                  trailing: const SizedBox(height: 24.0, width: 24.0, child: Placeholder()),
+                  title: const Text('A'),
+                  subtitle: const Text('A\nB\nC\nD\nE\nF\nG\nH\nI\nJ\nK\nL\nM'),
+                ),
+                ListTile(
+                  isThreeLine: isThreeLine,
+                  leading: const CircleAvatar(),
+                  trailing: const SizedBox(height: 24.0, width: 24.0, child: Placeholder()),
+                  title: const Text('A'),
+                  subtitle: const Text('A'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    void expectTwoLine() {
+      expect(
+        tester.getRect(find.byType(ListTile).at(0)),
+        const Rect.fromLTWH(0.0, 0.0, 800.0, height),
+      );
+      expect(
+        tester.getRect(find.byType(CircleAvatar).at(0)),
+        const Rect.fromLTWH(16.0, avatarTop, 40.0, 40.0),
+      );
+      expect(
+        tester.getRect(find.byType(Placeholder).at(0)),
+        const Rect.fromLTWH(800.0 - 24.0 - 24.0, placeholderTop, 24.0, 24.0),
+      );
+      expect(
+        tester.getRect(find.byType(ListTile).at(1)),
+        const Rect.fromLTWH(0.0, height, 800.0, 72.0),
+      );
+      expect(
+        tester.getRect(find.byType(CircleAvatar).at(1)),
+        const Rect.fromLTWH(16.0, height + 16.0, 40.0, 40.0),
+      );
+      expect(
+        tester.getRect(find.byType(Placeholder).at(1)),
+        const Rect.fromLTWH(800.0 - 24.0 - 24.0, height + 24.0, 24.0, 24.0),
+      );
+    }
+
+    void expectThreeLine() {
+      expect(
+        tester.getRect(find.byType(ListTile).at(0)),
+        const Rect.fromLTWH(0.0, 0.0, 800.0, height),
+      );
+      expect(
+        tester.getRect(find.byType(CircleAvatar).at(0)),
+        const Rect.fromLTWH(16.0, 8.0, 40.0, 40.0),
+      );
+      expect(
+        tester.getRect(find.byType(Placeholder).at(0)),
+        const Rect.fromLTWH(800.0 - 24.0 - 24.0, 8.0, 24.0, 24.0),
+      );
+      expect(
+        tester.getRect(find.byType(ListTile).at(1)),
+        const Rect.fromLTWH(0.0, height, 800.0, 88.0),
+      );
+      expect(
+        tester.getRect(find.byType(CircleAvatar).at(1)),
+        const Rect.fromLTWH(16.0, height + 8.0, 40.0, 40.0),
+      );
+      expect(
+        tester.getRect(find.byType(Placeholder).at(1)),
+        const Rect.fromLTWH(800.0 - 24.0 - 24.0, height + 8.0, 24.0, 24.0),
+      );
+    }
+
+    await tester.pumpWidget(buildFrame());
+    expectTwoLine();
+
+    await tester.pumpWidget(buildFrame(themeDataIsThreeLine: true));
+    expectThreeLine();
+
+    await tester.pumpWidget(buildFrame(themeDataIsThreeLine: false, themeIsThreeLine: true));
+    expectThreeLine();
+
+    await tester.pumpWidget(buildFrame(themeDataIsThreeLine: true, themeIsThreeLine: false));
+    expectTwoLine();
+
+    await tester.pumpWidget(buildFrame(isThreeLine: true));
+    expectThreeLine();
+
+    await tester.pumpWidget(buildFrame(themeIsThreeLine: true, isThreeLine: false));
+    expectTwoLine();
+
+    await tester.pumpWidget(buildFrame(themeDataIsThreeLine: true, isThreeLine: false));
+    expectTwoLine();
+
+    await tester.pumpWidget(
+      buildFrame(themeDataIsThreeLine: true, themeIsThreeLine: true, isThreeLine: false),
+    );
+    expectTwoLine();
+
+    await tester.pumpWidget(buildFrame(themeIsThreeLine: false, isThreeLine: true));
+    expectThreeLine();
+
+    await tester.pumpWidget(buildFrame(themeDataIsThreeLine: false, isThreeLine: true));
+    expectThreeLine();
+
+    await tester.pumpWidget(
+      buildFrame(themeDataIsThreeLine: false, themeIsThreeLine: false, isThreeLine: true),
+    );
+    expectThreeLine();
   });
 }
 
 RenderParagraph _getTextRenderObject(WidgetTester tester, String text) {
-  return tester.renderObject(find.descendant(
-    of: find.byType(ListTile),
-    matching: find.text(text),
-  ));
+  return tester.renderObject(find.descendant(of: find.byType(ListTile), matching: find.text(text)));
 }

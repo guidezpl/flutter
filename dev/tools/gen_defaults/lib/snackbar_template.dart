@@ -6,8 +6,11 @@ import 'template.dart';
 
 class SnackbarTemplate extends TokenTemplate {
   const SnackbarTemplate(
-      this.tokenGroup, super.blockName, super.fileName, super.tokens, {
-        super.colorSchemePrefix = '_colors.'
+    this.tokenGroup,
+    super.blockName,
+    super.fileName,
+    super.tokens, {
+    super.colorSchemePrefix = '_colors.',
   });
 
   final String tokenGroup;
@@ -19,7 +22,6 @@ class _${blockName}DefaultsM3 extends SnackBarThemeData {
 
   final BuildContext context;
   late final ThemeData _theme = Theme.of(context);
-
   late final ColorScheme _colors = _theme.colorScheme;
 
   @override
@@ -67,6 +69,12 @@ class _${blockName}DefaultsM3 extends SnackBarThemeData {
 
   @override
   bool get showCloseIcon => false;
+
+  @override
+  Color? get closeIconColor => ${componentColor("$tokenGroup.icon")};
+
+  @override
+  double get actionOverflowThreshold => 0.25;
 }
 ''';
 }

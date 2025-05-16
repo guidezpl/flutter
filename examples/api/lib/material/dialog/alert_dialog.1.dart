@@ -2,24 +2,22 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flutter code sample for [AlertDialog].
-
 import 'package:flutter/material.dart';
 
-void main() => runApp(const MyApp());
+/// Flutter code sample for [AlertDialog].
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+void main() => runApp(const AlertDialogExampleApp());
+
+class AlertDialogExampleApp extends StatelessWidget {
+  const AlertDialogExampleApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      theme: ThemeData(colorSchemeSeed: const Color(0xff6750a4), useMaterial3: true),
+      theme: ThemeData(colorSchemeSeed: const Color(0xff6750a4)),
       home: Scaffold(
         appBar: AppBar(title: const Text('AlertDialog Sample')),
-        body: const Center(
-          child: DialogExample(),
-        ),
+        body: const Center(child: DialogExample()),
       ),
     );
   }
@@ -31,23 +29,25 @@ class DialogExample extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return TextButton(
-      onPressed: () => showDialog<String>(
-        context: context,
-        builder: (BuildContext context) => AlertDialog(
-          title: const Text('AlertDialog Title'),
-          content: const Text('AlertDialog description'),
-          actions: <Widget>[
-            TextButton(
-              onPressed: () => Navigator.pop(context, 'Cancel'),
-              child: const Text('Cancel'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(context, 'OK'),
-              child: const Text('OK'),
-            ),
-          ],
-        ),
-      ),
+      onPressed:
+          () => showDialog<String>(
+            context: context,
+            builder:
+                (BuildContext context) => AlertDialog(
+                  title: const Text('AlertDialog Title'),
+                  content: const Text('AlertDialog description'),
+                  actions: <Widget>[
+                    TextButton(
+                      onPressed: () => Navigator.pop(context, 'Cancel'),
+                      child: const Text('Cancel'),
+                    ),
+                    TextButton(
+                      onPressed: () => Navigator.pop(context, 'OK'),
+                      child: const Text('OK'),
+                    ),
+                  ],
+                ),
+          ),
       child: const Text('Show Dialog'),
     );
   }

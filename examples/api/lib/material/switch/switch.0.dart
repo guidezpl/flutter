@@ -2,9 +2,9 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flutter code sample for [Switch].
-
 import 'package:flutter/material.dart';
+
+/// Flutter code sample for [Switch].
 
 void main() => runApp(const SwitchApp());
 
@@ -16,9 +16,7 @@ class SwitchApp extends StatelessWidget {
     return MaterialApp(
       home: Scaffold(
         appBar: AppBar(title: const Text('Switch Sample')),
-        body: const Center(
-          child: SwitchExample(),
-        ),
+        body: const Center(child: SwitchExample()),
       ),
     );
   }

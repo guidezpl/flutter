@@ -2,8 +2,12 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+/// @docImport 'package:flutter/widgets.dart';
+library;
+
 import 'dart:ui' show TextDirection;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show SystemChannels;
 
 import 'semantics_event.dart' show AnnounceSemanticsEvent, Assertiveness, TooltipSemanticsEvent;
@@ -17,11 +21,7 @@ export 'dart:ui' show TextDirection;
 ///
 /// When possible, prefer using mechanisms like [Semantics] to implicitly
 /// trigger announcements over using this event.
-class SemanticsService {
-  // This class is not meant to be instantiated or extended; this constructor
-  // prevents instantiation and extension.
-  SemanticsService._();
-
+abstract final class SemanticsService {
   /// Sends a semantic announcement.
   ///
   /// This should be used for announcement that are not seamlessly announced by
@@ -33,8 +33,28 @@ class SemanticsService {
   /// The assertiveness level of the announcement is determined by [assertiveness].
   /// Currently, this is only supported by the web engine and has no effect on
   /// other platforms. The default mode is [Assertiveness.polite].
-  static Future<void> announce(String message, TextDirection textDirection, {Assertiveness assertiveness = Assertiveness.polite}) async {
-    final AnnounceSemanticsEvent event = AnnounceSemanticsEvent(message, textDirection, assertiveness: assertiveness);
+  ///
+  /// Not all platforms support announcements. Check to see if
+  /// [isAnnounceSupported] before calling this method.
+  ///
+  /// ### Android
+  /// Android has [deprecated announcement events][1] due to its disruptive
+  /// behavior with TalkBack forcing it to clear its speech queue and speak the
+  /// provided text. Instead, use mechanisms like [Semantics] to implicitly
+  /// trigger announcements.
+  ///
+  /// [1]: https://developer.android.com/reference/android/view/View#announceForAccessibility(java.lang.CharSequence)
+  ///
+  static Future<void> announce(
+    String message,
+    TextDirection textDirection, {
+    Assertiveness assertiveness = Assertiveness.polite,
+  }) async {
+    final AnnounceSemanticsEvent event = AnnounceSemanticsEvent(
+      message,
+      textDirection,
+      assertiveness: assertiveness,
+    );
     await SystemChannels.accessibility.send(event.toMap());
   }
 
@@ -45,5 +65,13 @@ class SemanticsService {
   static Future<void> tooltip(String message) async {
     final TooltipSemanticsEvent event = TooltipSemanticsEvent(message);
     await SystemChannels.accessibility.send(event.toMap());
+  }
+
+  /// Checks if announce is supported on the given platform.
+  ///
+  /// On Android the announce method is deprecated, therefore will return false.
+  /// On other platforms, this will return true.
+  static bool isAnnounceSupported() {
+    return defaultTargetPlatform != TargetPlatform.android;
   }
 }

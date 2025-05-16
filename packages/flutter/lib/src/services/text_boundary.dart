@@ -31,6 +31,9 @@ abstract class TextBoundary {
   /// `position`, or null if no boundaries can be found.
   ///
   /// The return value, if not null, is usually less than or equal to `position`.
+  ///
+  /// The range of the return value is given by the closed interval
+  /// `[0, string.length]`.
   int? getLeadingTextBoundaryAt(int position) {
     if (position < 0) {
       return null;
@@ -39,10 +42,13 @@ abstract class TextBoundary {
     return start >= 0 ? start : null;
   }
 
-  /// Returns the offset of the closest text boundaries after the given `position`,
-  /// or null if there is no boundaries can be found after `position`.
+  /// Returns the offset of the closest text boundary after the given
+  /// `position`, or null if there is no boundary can be found after `position`.
   ///
   /// The return value, if not null, is usually greater than `position`.
+  ///
+  /// The range of the return value is given by the closed interval
+  /// `[0, string.length]`.
   int? getTrailingTextBoundaryAt(int position) {
     final int end = getTextBoundaryAt(max(0, position)).end;
     return end >= 0 ? end : null;
@@ -59,7 +65,7 @@ abstract class TextBoundary {
   }
 }
 
-/// A [TextBoundary] subclass for retriving the range of the grapheme the given
+/// A [TextBoundary] subclass for retrieving the range of the grapheme the given
 /// `position` is in.
 ///
 /// The class is implemented using the
@@ -75,7 +81,8 @@ class CharacterBoundary extends TextBoundary {
     if (position < 0) {
       return null;
     }
-    final int graphemeStart = CharacterRange.at(_text, min(position, _text.length)).stringBeforeLength;
+    final int graphemeStart =
+        CharacterRange.at(_text, min(position, _text.length)).stringBeforeLength;
     assert(CharacterRange.at(_text, graphemeStart).isEmpty);
     return graphemeStart;
   }
@@ -100,9 +107,15 @@ class CharacterBoundary extends TextBoundary {
     }
     final CharacterRange rangeAtPosition = CharacterRange.at(_text, position);
     return rangeAtPosition.isNotEmpty
-      ? TextRange(start: rangeAtPosition.stringBeforeLength, end: rangeAtPosition.stringBeforeLength + rangeAtPosition.current.length)
-      // rangeAtPosition is empty means `position` is a grapheme boundary.
-      : TextRange(start: rangeAtPosition.stringBeforeLength, end: getTrailingTextBoundaryAt(position) ?? -1);
+        ? TextRange(
+          start: rangeAtPosition.stringBeforeLength,
+          end: rangeAtPosition.stringBeforeLength + rangeAtPosition.current.length,
+        )
+        // rangeAtPosition is empty means `position` is a grapheme boundary.
+        : TextRange(
+          start: rangeAtPosition.stringBeforeLength,
+          end: getTrailingTextBoundaryAt(position) ?? -1,
+        );
   }
 }
 
@@ -120,12 +133,89 @@ class LineBoundary extends TextBoundary {
   final TextLayoutMetrics _textLayout;
 
   @override
-  TextRange getTextBoundaryAt(int position) => _textLayout.getLineAtOffset(TextPosition(offset: max(position, 0)));
+  TextRange getTextBoundaryAt(int position) =>
+      _textLayout.getLineAtOffset(TextPosition(offset: max(position, 0)));
+}
+
+/// A text boundary that uses paragraphs as logical boundaries.
+///
+/// A paragraph is defined as the range between line terminators. If no
+/// line terminators exist then the paragraph boundary is the entire document.
+class ParagraphBoundary extends TextBoundary {
+  /// Creates a [ParagraphBoundary] with the text.
+  const ParagraphBoundary(this._text);
+
+  final String _text;
+
+  /// Returns the [int] representing the start position of the paragraph that
+  /// bounds the given `position`. The returned [int] is the position of the code unit
+  /// that follows the line terminator that encloses the desired paragraph.
+  @override
+  int? getLeadingTextBoundaryAt(int position) {
+    if (position < 0 || _text.isEmpty) {
+      return null;
+    }
+
+    if (position >= _text.length) {
+      return _text.length;
+    }
+
+    if (position == 0) {
+      return 0;
+    }
+
+    int index = position;
+
+    if (index > 1 && _text.codeUnitAt(index) == 0x0A && _text.codeUnitAt(index - 1) == 0x0D) {
+      index -= 2;
+    } else if (TextLayoutMetrics.isLineTerminator(_text.codeUnitAt(index))) {
+      index -= 1;
+    }
+
+    while (index > 0) {
+      if (TextLayoutMetrics.isLineTerminator(_text.codeUnitAt(index))) {
+        return index + 1;
+      }
+      index -= 1;
+    }
+
+    return max(index, 0);
+  }
+
+  /// Returns the [int] representing the end position of the paragraph that
+  /// bounds the given `position`. The returned [int] is the position of the
+  /// code unit representing the trailing line terminator that encloses the
+  /// desired paragraph.
+  @override
+  int? getTrailingTextBoundaryAt(int position) {
+    if (position >= _text.length || _text.isEmpty) {
+      return null;
+    }
+
+    if (position < 0) {
+      return 0;
+    }
+
+    int index = position;
+
+    while (!TextLayoutMetrics.isLineTerminator(_text.codeUnitAt(index))) {
+      index += 1;
+      if (index == _text.length) {
+        return index;
+      }
+    }
+
+    return index < _text.length - 1 &&
+            _text.codeUnitAt(index) == 0x0D &&
+            _text.codeUnitAt(index + 1) == 0x0A
+        ? index + 2
+        : index + 1;
+  }
 }
 
 /// A text boundary that uses the entire document as logical boundary.
 class DocumentBoundary extends TextBoundary {
-  /// Creates a [DocumentBoundary] with the text
+  /// Creates a [DocumentBoundary] with the text.
   const DocumentBoundary(this._text);
 
   final String _text;

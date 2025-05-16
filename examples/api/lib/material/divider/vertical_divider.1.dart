@@ -2,19 +2,19 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flutter code sample for [Divider].
-
 import 'package:flutter/material.dart';
 
-void main() => runApp(const MyApp());
+/// Flutter code sample for [Divider].
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+void main() => runApp(const VerticalDividerExampleApp());
+
+class VerticalDividerExampleApp extends StatelessWidget {
+  const VerticalDividerExampleApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      theme: ThemeData(colorSchemeSeed: const Color(0xff6750a4), useMaterial3: true),
+      theme: ThemeData(colorSchemeSeed: const Color(0xff6750a4)),
       home: Scaffold(
         appBar: AppBar(title: const Text('Divider Sample')),
         body: const DividerExample(),
@@ -28,22 +28,14 @@ class DividerExample extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
+    return const Center(
       child: Padding(
-        padding: const EdgeInsets.all(16.0),
+        padding: EdgeInsets.all(16.0),
         child: Row(
-          children: const <Widget>[
-            Expanded(
-              child: Card(
-                child: SizedBox.expand(),
-              ),
-            ),
+          children: <Widget>[
+            Expanded(child: Card(child: SizedBox.expand())),
             VerticalDivider(),
-            Expanded(
-              child: Card(
-                child: SizedBox.expand(),
-              ),
-            ),
+            Expanded(child: Card(child: SizedBox.expand())),
           ],
         ),
       ),

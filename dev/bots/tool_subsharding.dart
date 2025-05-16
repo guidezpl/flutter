@@ -6,74 +6,92 @@ import 'dart:convert';
 import 'dart:io';
 
 class TestSpecs {
-
-  TestSpecs({
-    required this.path,
-    required this.startTime,
-  });
+  TestSpecs({required this.path, required this.startTime});
 
   final String path;
   int startTime;
   int? _endTime;
 
-  int get milliseconds {
-    return endTime - startTime;
-  }
+  int get milliseconds => endTime - startTime;
 
   set endTime(int value) {
     _endTime = value;
   }
 
-  int get endTime {
-    if (_endTime == null) {
-      return 0;
-    }
-    return _endTime!;
-  }
+  int get endTime => _endTime ?? 0;
 
   String toJson() {
-    return json.encode(
-      <String, String>{'path': path, 'runtime': milliseconds.toString()}
+    return json.encode(<String, String>{'path': path, 'runtime': milliseconds.toString()});
+  }
+}
+
+class TestFileReporterResults {
+  TestFileReporterResults._({
+    required this.allTestSpecs,
+    required this.hasFailedTests,
+    required this.errors,
+  });
+
+  /// Intended to parse the output file of `dart test --file-reporter json:file_name
+  factory TestFileReporterResults.fromFile(File metrics) {
+    if (!metrics.existsSync()) {
+      throw Exception('${metrics.path} does not exist');
+    }
+
+    final Map<int, TestSpecs> testSpecs = <int, TestSpecs>{};
+    bool hasFailedTests = true;
+    final List<String> errors = <String>[];
+
+    for (final String metric in metrics.readAsLinesSync()) {
+      /// Using print within a test adds the printed content to the json file report
+      /// as \u0000 making the file parsing step fail. The content of the json file
+      /// is expected to be a json dictionary per line and the following line removes
+      /// all the additional content at the beginning of the line until it finds the
+      /// first opening curly bracket.
+      // TODO(godofredoc): remove when https://github.com/flutter/flutter/issues/145553 is fixed.
+      final String sanitizedMetric = metric.replaceAll(RegExp(r'$.*{'), '{');
+      final Map<String, Object?> entry = json.decode(sanitizedMetric) as Map<String, Object?>;
+      if (entry.containsKey('suite')) {
+        final Map<String, Object?> suite = entry['suite']! as Map<String, Object?>;
+        addTestSpec(suite, entry['time']! as int, testSpecs);
+      } else if (isMetricDone(entry, testSpecs)) {
+        final Map<String, Object?> group = entry['group']! as Map<String, Object?>;
+        final int suiteID = group['suiteID']! as int;
+        addMetricDone(suiteID, entry['time']! as int, testSpecs);
+      } else if (entry.containsKey('error')) {
+        final String stackTrace =
+            entry.containsKey('stackTrace') ? entry['stackTrace']! as String : '';
+        errors.add('${entry['error']}\n $stackTrace');
+      } else if (entry.containsKey('success') && entry['success'] == true) {
+        hasFailedTests = false;
+      }
+    }
+
+    return TestFileReporterResults._(
+      allTestSpecs: testSpecs,
+      hasFailedTests: hasFailedTests,
+      errors: errors,
     );
   }
-}
 
-/// Intended to parse the output file of `dart test --file-reporter json:file_name
-Map<int, TestSpecs> generateMetrics(File metrics) {
-  final Map<int, TestSpecs> allTestSpecs = <int, TestSpecs>{};
-  if (!metrics.existsSync()) {
-    return allTestSpecs;
+  final Map<int, TestSpecs> allTestSpecs;
+  final bool hasFailedTests;
+  final List<String> errors;
+
+  static void addTestSpec(Map<String, Object?> suite, int time, Map<int, TestSpecs> allTestSpecs) {
+    allTestSpecs[suite['id']! as int] = TestSpecs(path: suite['path']! as String, startTime: time);
   }
 
-  bool success = false;
-  for(final String metric in metrics.readAsLinesSync()) {
-    final Map<String, dynamic> entry = json.decode(metric) as Map<String, dynamic>;
-    if (entry.containsKey('suite')) {
-      final Map<dynamic, dynamic> suite = entry['suite'] as Map<dynamic, dynamic>;
-      allTestSpecs[suite['id'] as int] = TestSpecs(
-        path: suite['path'] as String,
-        startTime: entry['time'] as int,
-      );
-    } else if (_isMetricDone(entry, allTestSpecs)) {
-      final Map<dynamic, dynamic> group = entry['group'] as Map<dynamic, dynamic>;
-      final int suiteID = group['suiteID'] as int;
-      final TestSpecs testSpec = allTestSpecs[suiteID]!;
-      testSpec.endTime = entry['time'] as int;
-    } else if (entry.containsKey('success') && entry['success'] == true) {
-      success = true;
+  static void addMetricDone(int suiteID, int time, Map<int, TestSpecs> allTestSpecs) {
+    final TestSpecs testSpec = allTestSpecs[suiteID]!;
+    testSpec.endTime = time;
+  }
+
+  static bool isMetricDone(Map<String, Object?> entry, Map<int, TestSpecs> allTestSpecs) {
+    if (entry.containsKey('group') && entry['type']! as String == 'group') {
+      final Map<String, Object?> group = entry['group']! as Map<String, Object?>;
+      return allTestSpecs.containsKey(group['suiteID']! as int);
     }
+    return false;
   }
-
-  if (!success) { // means that not all tests succeeded therefore no metrics are stored
-    return <int, TestSpecs>{};
-  }
-  return allTestSpecs;
-}
-
-bool _isMetricDone(Map<String, dynamic> entry, Map<int, TestSpecs> allTestSpecs) {
-  if (entry.containsKey('group') && entry['type'] as String == 'group') {
-    final Map<dynamic, dynamic> group = entry['group'] as Map<dynamic, dynamic>;
-    return allTestSpecs.containsKey(group['suiteID'] as int);
-  }
-  return false;
 }
